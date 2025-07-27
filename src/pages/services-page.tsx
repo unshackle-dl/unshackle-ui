@@ -1,41 +1,48 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useServices } from '@/lib/api/queries';
+import { ServiceCard, ServiceAuthModal, ServiceConfigModal } from '@/components/services';
+import type { ServiceInfo } from '@/lib/types';
 
 export function ServicesPage() {
-  const { data: services = [], isLoading, error } = useServices();
+  const { data: services = [], isLoading, error, refetch } = useServices();
+  const [selectedServiceAuth, setSelectedServiceAuth] = useState<ServiceInfo | null>(null);
+  const [selectedServiceConfig, setSelectedServiceConfig] = useState<ServiceInfo | null>(null);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'available':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-    }
+  const handleRefresh = () => {
+    refetch();
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'available':
-        return <Badge variant="secondary" className="bg-green-100 text-green-800">Available</Badge>;
-      case 'error':
-        return <Badge variant="destructive">Error</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
+  const handleAuthClick = (service: ServiceInfo) => {
+    setSelectedServiceAuth(service);
+  };
+
+  const handleConfigClick = (service: ServiceInfo) => {
+    setSelectedServiceConfig(service);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Service Configuration</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Service Management</h1>
           <p className="text-muted-foreground mt-1">
             {isLoading ? 'Loading services...' : `${services.length} service${services.length !== 1 ? 's' : ''} configured`}
           </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="flex items-center space-x-1"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </Button>
         </div>
       </div>
       
@@ -80,38 +87,30 @@ export function ServicesPage() {
       {!isLoading && !error && services.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {services.map((service) => (
-            <Card key={service.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{service.name}</CardTitle>
-                  {getStatusIcon(service.status)}
-                </div>
-                <div className="flex items-center space-x-2">
-                  <CardDescription className="text-sm font-mono">
-                    {service.id}
-                  </CardDescription>
-                  {getStatusBadge(service.status)}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {service.description && (
-                    <p className="text-sm text-muted-foreground">
-                      {service.description}
-                    </p>
-                  )}
-                  <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                    <span>Authentication:</span>
-                    <Badge variant={service.requires_auth ? "outline" : "secondary"} className="text-xs">
-                      {service.requires_auth ? "Required" : "None"}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <ServiceCard
+              key={service.id}
+              service={service}
+              onAuthClick={handleAuthClick}
+              onConfigureClick={handleConfigClick}
+            />
           ))}
         </div>
       )}
+
+      {/* Authentication Modal */}
+      <ServiceAuthModal
+        service={selectedServiceAuth}
+        isOpen={!!selectedServiceAuth}
+        onClose={() => setSelectedServiceAuth(null)}
+      />
+
+      {/* Configuration Modal */}
+      <ServiceConfigModal
+        service={selectedServiceConfig}
+        isOpen={!!selectedServiceConfig}
+        onClose={() => setSelectedServiceConfig(null)}
+      />
+
     </div>
   );
 }

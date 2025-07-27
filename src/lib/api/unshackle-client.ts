@@ -1,4 +1,4 @@
-import { type APIResponse, type SearchRequest, type SearchResult, type DownloadRequest, type DownloadJob, type ServiceInfo, type WebSocketMessage } from '../types';
+import { type APIResponse, type SearchRequest, type SearchResult, type DownloadRequest, type DownloadJob, type ServiceInfo, type ServiceConfig, type ServiceAuthRequest, type ServiceConfigRequest, type WebSocketMessage } from '../types';
 import { APIError, APIErrorType } from './api-errors';
 
 export class UnshackleAPIClient {
@@ -140,6 +140,81 @@ export class UnshackleAPIClient {
     }
 
     return response.data || [];
+  }
+
+
+  // Test service connection
+  async testService(serviceId: string): Promise<boolean> {
+    const response = await this.request<{ success: boolean }>(`/api/services/${serviceId}/test`, {
+      method: 'POST',
+    });
+
+    if (response.status === 'error') {
+      throw new Error(response.error?.message || 'Service test failed');
+    }
+
+    return response.data?.success || false;
+  }
+
+  // Authenticate with service
+  async authenticateService(params: ServiceAuthRequest): Promise<void> {
+    const response = await this.request(`/api/services/${params.service_id}/auth`, {
+      method: 'POST',
+      body: JSON.stringify({ credentials: params.credentials }),
+    });
+
+    if (response.status === 'error') {
+      throw new Error(response.error?.message || 'Authentication failed');
+    }
+  }
+
+  // Logout from service
+  async logoutService(serviceId: string): Promise<void> {
+    const response = await this.request(`/api/services/${serviceId}/auth`, {
+      method: 'DELETE',
+    });
+
+    if (response.status === 'error') {
+      throw new Error(response.error?.message || 'Logout failed');
+    }
+  }
+
+  // Get service configuration
+  async getServiceConfig(serviceId: string): Promise<ServiceConfig> {
+    const response = await this.request<ServiceConfig>(`/api/services/${serviceId}/config`);
+
+    if (response.status === 'error') {
+      throw new Error(response.error?.message || 'Failed to get service config');
+    }
+
+    if (!response.data) {
+      throw new Error('No config data received');
+    }
+
+    return response.data;
+  }
+
+  // Update service configuration
+  async updateServiceConfig(params: ServiceConfigRequest): Promise<void> {
+    const response = await this.request(`/api/services/${params.service_id}/config`, {
+      method: 'PUT',
+      body: JSON.stringify(params.config),
+    });
+
+    if (response.status === 'error') {
+      throw new Error(response.error?.message || 'Failed to update service config');
+    }
+  }
+
+  // Enable/disable service
+  async toggleService(serviceId: string, enabled: boolean): Promise<void> {
+    const response = await this.request(`/api/services/${serviceId}/${enabled ? 'enable' : 'disable'}`, {
+      method: 'POST',
+    });
+
+    if (response.status === 'error') {
+      throw new Error(response.error?.message || `Failed to ${enabled ? 'enable' : 'disable'} service`);
+    }
   }
 
   // WebSocket connection for real-time updates

@@ -64,6 +64,7 @@ export const queryKeys = {
   unshackle: {
     all: ['unshackle'] as const,
     services: () => [...queryKeys.unshackle.all, 'services'] as const,
+    serviceConfig: (serviceId: string) => [...queryKeys.unshackle.all, 'service', serviceId, 'config'] as const,
     jobs: () => [...queryKeys.unshackle.all, 'jobs'] as const,
     job: (id: string) => [...queryKeys.unshackle.all, 'job', id] as const,
     search: (params: { service: string; query: string; type?: string }) => 

@@ -29,7 +29,7 @@ export const mockServices: ServiceInfo[] = [
   {
     id: 'ATVP',
     name: 'Apple TV+',
-    status: 'unavailable',
+    status: 'available',
     description: 'Apple TV Plus streaming service',
     requires_auth: true,
     auth_status: 'unauthenticated',

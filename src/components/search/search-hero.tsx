@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Search, Clock, X } from 'lucide-react';
+import { Search, Clock, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +17,7 @@ interface SearchHeroProps {
   services: ServiceInfo[];
   selectedServices: string[];
   servicesLoading?: boolean;
+  apiReady?: boolean;
   className?: string;
 }
 
@@ -26,6 +27,7 @@ export function SearchHero({
   services,
   selectedServices,
   servicesLoading = false,
+  apiReady = true,
   className 
 }: SearchHeroProps) {
   const [query, setQuery] = useState('');
@@ -37,17 +39,19 @@ export function SearchHero({
   const { searchHistory, clearSearchHistory } = useSearchStore();
   
   const handleSearch = useCallback(() => {
-    if (query.trim()) {
+    if (query.trim() && apiReady) {
       onSearch(query.trim());
       setShowHistory(false);
     }
-  }, [query, onSearch]);
+  }, [query, onSearch, apiReady]);
 
   const handleHistorySelect = useCallback((historyQuery: string) => {
     setQuery(historyQuery);
     setShowHistory(false);
-    onSearch(historyQuery);
-  }, [onSearch]);
+    if (apiReady) {
+      onSearch(historyQuery);
+    }
+  }, [onSearch, apiReady]);
 
   // Close history dropdown when clicking outside
   useEffect(() => {
@@ -155,7 +159,11 @@ export function SearchHero({
                 </div>
               )}
             </div>
-            <Button onClick={handleSearch} disabled={!query.trim()}>
+            <Button 
+              onClick={handleSearch} 
+              disabled={!query.trim() || !apiReady || selectedServices.length === 0}
+              title={!apiReady ? "Waiting for API connection..." : selectedServices.length === 0 ? "Please select at least one service" : ""}
+            >
               <Search className="h-4 w-4 mr-2" />
               Search
             </Button>
@@ -174,6 +182,18 @@ export function SearchHero({
             onTypeToggle={handleContentTypeToggle}
           />
         </div>
+
+        {/* API Status Message */}
+        {!apiReady && (servicesLoading || services.length === 0) && (
+          <div className="text-center py-4">
+            <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm">
+                {servicesLoading ? "Connecting to API..." : "Waiting for services..."}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

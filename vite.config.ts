@@ -8,6 +8,18 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true, // Enable external access
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8888',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/ws': {
+        target: 'ws://localhost:8888',
+        ws: true,
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port: 3000,

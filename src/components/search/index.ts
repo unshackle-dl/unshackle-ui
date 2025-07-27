@@ -1,7 +1,10 @@
 export { SearchHero } from './search-hero';
+export { SimpleSearchHero } from './simple-search-hero';
 export { ServiceSelector } from './service-selector';
 export { SearchFilters } from './search-filters';
 export { SearchResults } from './search-results';
 export { ContentGrid } from './content-grid';
 export { ContentCard } from './content-card';
 export { ContentListItem } from './content-list-item';
+export { TMDBSelectionGrid } from './tmdb-selection-grid';
+export { ServiceSearchStep } from './service-search-step';

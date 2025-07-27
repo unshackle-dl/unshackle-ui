@@ -25,7 +25,7 @@ interface WebSocketProviderProps {
 
 export function WebSocketProvider({ 
   children, 
-  url = 'ws://localhost:8888/ws' 
+  url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
 }: WebSocketProviderProps) {
   const { handleJobUpdate, handleJobProgress } = useDownloadsStore();
   const { updateServiceStatus } = useServicesStore();

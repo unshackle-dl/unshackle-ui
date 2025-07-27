@@ -1,233 +1,183 @@
-import { useState, useCallback } from 'react';
-import { Grid, List, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { SearchHero } from '@/components/search/search-hero';
-import { ContentGrid } from '@/components/search/content-grid';
+import { SimpleSearchHero } from '@/components/search/simple-search-hero';
+import { TMDBSelectionGrid, ServiceSearchStep, ContentGrid } from '@/components/search';
 import { DownloadOptionsModal } from '@/components/downloads/download-options-modal';
-import { useSearchStore } from '@/stores/search-store';
-import { useServicesStore } from '@/stores/services-store';
-import { useDownloadsStore } from '@/stores/downloads-store';
-import { useEnhancedSearch } from '@/hooks/use-enhanced-search';
-import { useStartDownload } from '@/lib/api/queries';
-import { type EnhancedSearchResult, type DownloadOptions } from '@/lib/types';
+import { useServices } from '@/lib/api/queries';
+import { useTwoStepSearch } from '@/hooks/use-two-step-search';
+import type { EnhancedSearchResult, DownloadOptions } from '@/lib/types';
 
 export function SearchPage() {
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedResult, setSelectedResult] = useState<EnhancedSearchResult | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchEnabled, setSearchEnabled] = useState(false);
-  
-  const {
-    selectedServices,
-    selectedContentTypes,
-    setSelectedServices,
-    addToSearchHistory,
-  } = useSearchStore();
-  
-  const { 
-    services, 
-    loading: servicesLoading
-  } = useServicesStore();
-  const { addJob } = useDownloadsStore();
-  const startDownloadMutation = useStartDownload();
 
-  // Enhanced search with TMDB integration
-  const {
-    results: enhancedResults,
-    isLoading: searchLoading,
-    error: searchError,
-  } = useEnhancedSearch({
-    query: searchQuery,
-    services: selectedServices,
-    contentTypes: selectedContentTypes,
-    enabled: searchEnabled,
-  });
+  // Load services
+  const { data: services = [] } = useServices();
 
-  // Services are automatically loaded via the useServices hook in the main app
-  
-  const handleSearch = useCallback((query: string) => {
-    if (!query.trim() || selectedServices.length === 0) return;
-    
-    setSearchQuery(query);
-    setSearchEnabled(true);
-    
-    // Add to search history when search is initiated
-    addToSearchHistory(query, 0); // We'll update with actual count when results come in
-  }, [selectedServices, addToSearchHistory]);
-  
-  const handleServiceChange = useCallback((services: string[]) => {
-    setSelectedServices(services);
-  }, [setSelectedServices]);
-  
-  const handleDownload = useCallback(async (result: EnhancedSearchResult) => {
+  // Two-step search workflow
+  const {
+    searchState,
+    tmdbResults,
+    tmdbLoading,
+    tmdbError,
+    serviceResults,
+    serviceLoading,
+    startSearch,
+    selectTMDBResult,
+    searchServices,
+    resetSearch,
+    backToTMDBSelection,
+    retryTMDBSearch,
+  } = useTwoStepSearch();
+
+  const handleDownload = (result: EnhancedSearchResult) => {
     setSelectedResult(result);
     setShowDownloadModal(true);
-  }, []);
-  
-  const handleDownloadConfirm = useCallback(async (options: DownloadOptions) => {
+  };
+
+  const handleDownloadSubmit = async (options: DownloadOptions) => {
     if (!selectedResult) return;
     
-    try {
-      // Start the download using the API
-      const jobId = await startDownloadMutation.mutateAsync({
-        service: selectedResult.unshackleResult.service,
-        content_id: selectedResult.unshackleResult.id,
-        quality: options.quality,
-        hdr10: options.hdr10,
-        dolby_vision: options.dolby_vision,
-        atmos: options.atmos,
-        subtitles: options.subtitles,
-        audio_tracks: options.audio_tracks,
-      });
-      
-      // Create a local job entry for immediate UI feedback
-      const job = {
-        id: jobId,
-        service: selectedResult.unshackleResult.service,
-        content_id: selectedResult.unshackleResult.id,
-        content_title: selectedResult.displayTitle,
-        status: 'queued' as const,
-        start_time: new Date().toISOString(),
-        progress: 0,
-      };
-      
-      addJob(job);
-      
-      // Add to search history to update with successful download initiation
-      addToSearchHistory(searchQuery, enhancedResults.length);
-      
-    } catch (error) {
-      console.error('Failed to start download:', error);
-      // Error is handled by the mutation's onError callback
-    } finally {
-      setSelectedResult(null);
-      setShowDownloadModal(false);
-    }
-  }, [selectedResult, startDownloadMutation, addJob, addToSearchHistory, searchQuery, enhancedResults.length]);
-  
-  const isLoading = searchLoading;
-  const hasResults = enhancedResults.length > 0;
-  
-  return (
-    <div className="space-y-6">
-      {/* Search Hero Section */}
-      <SearchHero
-        onSearch={handleSearch}
-        onServiceChange={handleServiceChange}
-        services={services}
-        selectedServices={selectedServices}
-        servicesLoading={servicesLoading}
-      />
-      
-      {/* Results Section */}
-      {(hasResults || isLoading) && (
-        <div className="space-y-4">
-          {/* Results Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              {hasResults && (
-                <p className="text-sm text-muted-foreground">
-                  Found {enhancedResults.length} results for "{searchQuery}"
-                </p>
-              )}
-            </div>
+    // TODO: Implement download functionality
+    console.log('Download:', selectedResult, options);
+    setShowDownloadModal(false);
+    setSelectedResult(null);
+  };
+
+  const renderCurrentStep = () => {
+    switch (searchState.step) {
+      case 'initial':
+        return (
+          <SimpleSearchHero
+            onSearch={startSearch}
+            isLoading={false}
+            disabled={false}
+            placeholder="Search for movies and TV shows..."
+          />
+        );
+
+      case 'tmdb_selection':
+        return (
+          <div className="space-y-6">
+            <SimpleSearchHero
+              onSearch={startSearch}
+              isLoading={tmdbLoading}
+              disabled={false}
+              placeholder="Search for movies and TV shows..."
+              defaultValue={searchState.tmdbQuery}
+            />
             
-            {hasResults && (
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant={viewMode === 'grid' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('grid')}
-                >
-                  <Grid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('list')}
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
+            <TMDBSelectionGrid
+              results={tmdbResults}
+              isLoading={tmdbLoading}
+              onSelect={selectTMDBResult}
+              onRetry={retryTMDBSearch}
+            />
+          </div>
+        );
+
+      case 'service_search':
+        return (
+          <ServiceSearchStep
+            selectedContent={searchState.selectedTMDBResult!}
+            services={services}
+            onSearch={searchServices}
+            onBack={backToTMDBSelection}
+            isLoading={serviceLoading}
+          />
+        );
+
+      case 'completed':
+        // Convert service results to enhanced results for display
+        const enhancedResults: EnhancedSearchResult[] = serviceResults.map(result => ({
+          unshackleResult: result,
+          tmdbData: searchState.selectedTMDBResult!,
+          displayTitle: result.title,
+          displayYear: searchState.selectedTMDBResult?.release_date || searchState.selectedTMDBResult?.first_air_date 
+            ? new Date(searchState.selectedTMDBResult.release_date || searchState.selectedTMDBResult.first_air_date!).getFullYear().toString()
+            : '',
+          posterURL: searchState.selectedTMDBResult?.poster_path 
+            ? `https://image.tmdb.org/t/p/w500${searchState.selectedTMDBResult.poster_path}`
+            : undefined,
+          description: searchState.selectedTMDBResult?.overview,
+          rating: searchState.selectedTMDBResult?.vote_average,
+          genres: [], // Could map from TMDB genre_ids if needed
+        }));
+
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-semibold">
+                Search Results for "{searchState.selectedTMDBResult?.title || searchState.selectedTMDBResult?.name}"
+              </h2>
+              <button
+                onClick={resetSearch}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Start New Search
+              </button>
+            </div>
+
+            {enhancedResults.length > 0 ? (
+              <ContentGrid
+                results={enhancedResults}
+                viewMode="grid"
+                onDownload={handleDownload}
+              />
+            ) : (
+              <Card>
+                <CardContent className="flex items-center justify-center py-12">
+                  <div className="text-center space-y-2">
+                    <p className="text-lg font-medium">No Results Found</p>
+                    <p className="text-muted-foreground">
+                      "{searchState.selectedTMDBResult?.title || searchState.selectedTMDBResult?.name}" 
+                      was not found on the selected streaming services.
+                    </p>
+                    <button
+                      onClick={resetSearch}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Try a different search
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
-          
-          {/* Loading State */}
-          {isLoading && (
-            <Card>
-              <CardContent className="flex items-center justify-center py-12">
-                <div className="text-center space-y-2">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto" />
-                  <p className="text-muted-foreground">Searching across services...</p>
-                  <p className="text-xs text-muted-foreground">
-                    Searching {selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} and enriching with TMDB data
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+        );
 
-          {/* Error State */}
-          {searchError && !isLoading && (
-            <Card>
-              <CardContent className="text-center py-12">
-                <div className="space-y-2">
-                  <p className="text-lg font-medium text-destructive">Search Error</p>
-                  <p className="text-muted-foreground">{searchError}</p>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setSearchEnabled(false);
-                      setTimeout(() => setSearchEnabled(true), 100);
-                    }}
-                  >
-                    Retry Search
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* Results Grid */}
-          {hasResults && !isLoading && (
-            <ContentGrid
-              results={enhancedResults}
-              onDownload={handleDownload}
-              viewMode={viewMode}
-            />
-          )}
-        </div>
-      )}
-      
-      {/* Empty State */}
-      {!hasResults && !isLoading && searchQuery && (
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {renderCurrentStep()}
+
+      {tmdbError && searchState.step === 'tmdb_selection' && (
         <Card>
-          <CardContent className="text-center py-12">
-            <div className="space-y-2">
-              <p className="text-lg font-medium">No results found</p>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center space-y-2">
+              <p className="text-lg font-medium text-red-600">Search Error</p>
               <p className="text-muted-foreground">
-                Try adjusting your search terms or selecting different services
+                Unable to search TMDB. Please try again.
               </p>
             </div>
           </CardContent>
         </Card>
       )}
-      
-      {/* Download Options Modal */}
+
       {selectedResult && (
         <DownloadOptionsModal
           isOpen={showDownloadModal}
           onClose={() => {
-            if (!startDownloadMutation.isPending) {
-              setShowDownloadModal(false);
-              setSelectedResult(null);
-            }
+            setShowDownloadModal(false);
+            setSelectedResult(null);
           }}
-          onConfirm={handleDownloadConfirm}
+          onConfirm={handleDownloadSubmit}
           result={selectedResult}
-          isLoading={startDownloadMutation.isPending}
+          isLoading={false}
         />
       )}
     </div>

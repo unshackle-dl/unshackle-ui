@@ -17,7 +17,7 @@ export interface APIConfig {
 
 export const defaultAPIConfig: APIConfig = {
   unshackle: {
-    baseURL: 'http://localhost:8888',
+    baseURL: '', // Use empty string for relative URLs (proxied through Vite in development)
     apiKey: 'development-key-change-me',
     timeout: 30000, // 30 seconds
     retryAttempts: 3,

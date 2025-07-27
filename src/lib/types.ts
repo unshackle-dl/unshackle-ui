@@ -58,10 +58,29 @@ export interface DownloadJob {
 export interface ServiceInfo {
   id: string;
   name: string;
-  status: 'available' | 'unavailable' | 'error';
+  status: 'available';  // If API reports it, it's available
   description?: string;
   requires_auth: boolean;
   auth_status?: 'authenticated' | 'unauthenticated' | 'expired';
+  config?: ServiceConfig;
+}
+
+export interface ServiceConfig {
+  enabled: boolean;
+  auto_retry: boolean;
+  max_concurrent_downloads: number;
+  timeout: number;
+  custom_settings?: Record<string, any>;
+}
+
+export interface ServiceAuthRequest {
+  service_id: string;
+  credentials?: Record<string, string>;
+}
+
+export interface ServiceConfigRequest {
+  service_id: string;
+  config: Partial<ServiceConfig>;
 }
 
 // TMDB API Types

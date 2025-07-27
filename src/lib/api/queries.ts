@@ -10,6 +10,9 @@ import type {
   SearchRequest, 
   DownloadRequest, 
   ServiceInfo,
+  ServiceConfig,
+  ServiceAuthRequest,
+  ServiceConfigRequest,
   DownloadJob,
   SearchResult,
   TMDBSearchResult 
@@ -78,6 +81,19 @@ export function useJob(jobId: string) {
   return query;
 }
 
+
+export function useServiceConfig(serviceId: string) {
+  return useQuery({
+    queryKey: queryKeys.unshackle.serviceConfig(serviceId),
+    queryFn: async (): Promise<ServiceConfig> => {
+      const client = apiClientManager.getUnshackleClient();
+      return await client.getServiceConfig(serviceId);
+    },
+    enabled: !!serviceId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
 export function useSearch(params: SearchRequest) {
   const query = useQuery({
     queryKey: queryKeys.unshackle.search(params),
@@ -144,6 +160,125 @@ export function useCancelJob() {
         type: 'info',
         title: 'Download Cancelled',
         description: 'Download has been cancelled.',
+      });
+    },
+  });
+}
+
+export function useTestService() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (serviceId: string): Promise<boolean> => {
+      const client = apiClientManager.getUnshackleClient();
+      return await client.testService(serviceId);
+    },
+    onSuccess: (success) => {
+      // Invalidate service queries to refresh status
+      queryClient.invalidateQueries({ queryKey: queryKeys.unshackle.services() });
+      
+      // Show notification
+      useUIStore.getState().addNotification({
+        type: success ? 'success' : 'error',
+        title: 'Service Test',
+        description: success ? 'Service connection successful' : 'Service connection failed',
+      });
+    },
+  });
+}
+
+export function useAuthenticateService() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (params: ServiceAuthRequest): Promise<void> => {
+      const client = apiClientManager.getUnshackleClient();
+      return await client.authenticateService(params);
+    },
+    onSuccess: (_, params) => {
+      // Invalidate service queries to refresh auth status
+      queryClient.invalidateQueries({ queryKey: queryKeys.unshackle.services() });
+      
+      // Show success notification
+      useUIStore.getState().addNotification({
+        type: 'success',
+        title: 'Authentication Success',
+        description: `Successfully authenticated with ${params.service_id}`,
+      });
+    },
+    onError: (error, params) => {
+      // Show error notification
+      useUIStore.getState().addNotification({
+        type: 'error',
+        title: 'Authentication Failed',
+        description: `Failed to authenticate with ${params.service_id}: ${error.message}`,
+      });
+    },
+  });
+}
+
+export function useLogoutService() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (serviceId: string): Promise<void> => {
+      const client = apiClientManager.getUnshackleClient();
+      return await client.logoutService(serviceId);
+    },
+    onSuccess: (_, serviceId) => {
+      // Invalidate service queries to refresh auth status
+      queryClient.invalidateQueries({ queryKey: queryKeys.unshackle.services() });
+      
+      // Show success notification
+      useUIStore.getState().addNotification({
+        type: 'info',
+        title: 'Logged Out',
+        description: `Successfully logged out from ${serviceId}`,
+      });
+    },
+  });
+}
+
+export function useUpdateServiceConfig() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (params: ServiceConfigRequest): Promise<void> => {
+      const client = apiClientManager.getUnshackleClient();
+      return await client.updateServiceConfig(params);
+    },
+    onSuccess: (_, params) => {
+      // Invalidate service queries to refresh config
+      queryClient.invalidateQueries({ queryKey: queryKeys.unshackle.services() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.unshackle.serviceConfig(params.service_id) });
+      
+      // Show success notification
+      useUIStore.getState().addNotification({
+        type: 'success',
+        title: 'Configuration Updated',
+        description: `Service configuration for ${params.service_id} has been updated`,
+      });
+    },
+  });
+}
+
+export function useToggleService() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ serviceId, enabled }: { serviceId: string; enabled: boolean }): Promise<void> => {
+      const client = apiClientManager.getUnshackleClient();
+      return await client.toggleService(serviceId, enabled);
+    },
+    onSuccess: (_, { serviceId, enabled }) => {
+      // Invalidate service queries to refresh status
+      queryClient.invalidateQueries({ queryKey: queryKeys.unshackle.services() });
+      
+      // Show success notification
+      useUIStore.getState().addNotification({
+        type: 'success',
+        title: `Service ${enabled ? 'Enabled' : 'Disabled'}`,
+        description: `${serviceId} has been ${enabled ? 'enabled' : 'disabled'}`,
       });
     },
   });

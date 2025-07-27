@@ -14,3 +14,4 @@ export { Skeleton, ContentCardSkeleton, SearchResultsSkeleton } from './loading-
 export { ErrorState, EmptyState } from './error-state';
 export { ErrorBoundary, DefaultErrorFallback } from './error-boundary';
 export { Toaster } from './toast';
+export { Switch } from './switch';
