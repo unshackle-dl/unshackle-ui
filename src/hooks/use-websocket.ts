@@ -7,8 +7,10 @@ interface UseWebSocketOptions {
   onOpen?: () => void;
   onClose?: () => void;
   onError?: (error: Event) => void;
+  onReconnecting?: (attempt: number) => void;
   reconnectAttempts?: number;
   reconnectInterval?: number;
+  autoConnect?: boolean;
 }
 
 export function useWebSocket({
@@ -17,8 +19,10 @@ export function useWebSocket({
   onOpen,
   onClose,
   onError,
+  onReconnecting,
   reconnectAttempts = 5,
   reconnectInterval = 1000,
+  autoConnect = true,
 }: UseWebSocketOptions) {
   const ws = useRef<WebSocket | null>(null);
   const reconnectCount = useRef(0);
@@ -54,6 +58,7 @@ export function useWebSocket({
           
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectCount.current++;
+            onReconnecting?.(reconnectCount.current);
             connect();
           }, delay);
         } else {
@@ -68,7 +73,7 @@ export function useWebSocket({
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
     }
-  }, [url, onMessage, onOpen, onClose, onError, reconnectAttempts, reconnectInterval]);
+  }, [url, onMessage, onOpen, onClose, onError, onReconnecting, reconnectAttempts, reconnectInterval]);
   
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -80,6 +85,7 @@ export function useWebSocket({
       ws.current.close();
       ws.current = null;
     }
+    reconnectCount.current = 0;
   }, []);
   
   const sendMessage = useCallback((message: any) => {
@@ -91,15 +97,18 @@ export function useWebSocket({
   }, []);
   
   useEffect(() => {
-    connect();
+    if (autoConnect) {
+      connect();
+    }
     
     return () => {
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [connect, disconnect, autoConnect]);
   
   return {
     sendMessage,
+    connect,
     disconnect,
     isConnected: ws.current?.readyState === WebSocket.OPEN,
   };

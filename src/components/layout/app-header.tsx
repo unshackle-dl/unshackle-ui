@@ -1,7 +1,7 @@
-import { Moon, Sun, Wifi, WifiOff } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/stores";
-import { useWebSocketContext } from "@/contexts/websocket-context";
+import { ConnectionStatusIndicator } from "./connection-status-indicator";
 import { cn } from "@/lib/utils";
 
 interface AppHeaderProps {
@@ -10,7 +10,6 @@ interface AppHeaderProps {
 
 export function AppHeader({ className }: AppHeaderProps) {
   const { theme, setTheme } = useUIStore();
-  const { isConnected } = useWebSocketContext();
 
   const toggleTheme = () => {
     const themes: Array<typeof theme> = ['light', 'dark', 'system'];
@@ -26,19 +25,7 @@ export function AppHeader({ className }: AppHeaderProps) {
     )}>
       <div className="min-h-16 px-4 sm:px-6 py-2 flex items-center justify-end gap-4">
         {/* Connection Status */}
-        <div className="flex items-center space-x-2 text-sm">
-          {isConnected ? (
-            <>
-              <Wifi className="h-4 w-4 text-green-500" />
-              <span>Connected</span>
-            </>
-          ) : (
-            <>
-              <WifiOff className="h-4 w-4 text-red-500" />
-              <span>Disconnected</span>
-            </>
-          )}
-        </div>
+        <ConnectionStatusIndicator showDetails />
 
         {/* Theme Toggle */}
         <Button

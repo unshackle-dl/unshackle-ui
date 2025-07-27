@@ -1,10 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, FileDown, CheckCircle, XCircle } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Loader2, Calendar, FileDown, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { useJobs } from '@/lib/api/queries';
+import { useDownloadsStore } from '@/stores/downloads-store';
 
 export function HistoryPage() {
   const { data: jobs = [], isLoading, error } = useJobs();
+  const { clearCompletedJobs, stats } = useDownloadsStore();
   
   // Filter for completed and failed jobs (history)
   const historyJobs = jobs.filter(job => 
@@ -53,9 +56,15 @@ export function HistoryPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Download History</h1>
           <p className="text-muted-foreground mt-1">
-            {isLoading ? 'Loading history...' : `${historyJobs.length} completed download${historyJobs.length !== 1 ? 's' : ''}`}
+            {isLoading ? 'Loading history...' : `${historyJobs.length} completed download${historyJobs.length !== 1 ? 's' : ''} • ${stats.totalCompleted} successful, ${stats.totalFailed} failed`}
           </p>
         </div>
+        {!isLoading && historyJobs.length > 0 && (
+          <Button variant="outline" onClick={clearCompletedJobs}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear History
+          </Button>
+        )}
       </div>
       
       {isLoading && (

@@ -1,4 +1,4 @@
-import { Download, Clock, CheckCircle, XCircle, X, FolderOpen } from 'lucide-react';
+import { Download, Clock, CheckCircle, XCircle, X, FolderOpen, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { type DownloadJob } from '@/lib/types';
 import { useDownloadsStore } from '@/stores/downloads-store';
+import { useCancelJob } from '@/lib/api/queries';
 
 interface DownloadJobCardProps {
   job: DownloadJob;
@@ -14,7 +15,8 @@ interface DownloadJobCardProps {
 }
 
 export function DownloadJobCard({ job, variant, className }: DownloadJobCardProps) {
-  const { cancelJob } = useDownloadsStore();
+  const { cancelJob, retryFailedJob } = useDownloadsStore();
+  const cancelJobMutation = useCancelJob();
   
   const statusConfig = {
     active: {
@@ -56,9 +58,36 @@ export function DownloadJobCard({ job, variant, className }: DownloadJobCardProp
     const seconds = Math.floor((duration % 60000) / 1000);
     return `${minutes}m ${seconds}s`;
   };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getProgressText = () => {
+    if (job.total_bytes && job.downloaded_bytes) {
+      return `${formatBytes(job.downloaded_bytes)} / ${formatBytes(job.total_bytes)}`;
+    }
+    if (job.total_files && job.current_file) {
+      return `File ${job.current_file} of ${job.total_files}`;
+    }
+    return '';
+  };
   
-  const handleCancel = () => {
-    cancelJob(job.id);
+  const handleCancel = async () => {
+    try {
+      await cancelJobMutation.mutateAsync(job.id);
+      cancelJob(job.id);
+    } catch (error) {
+      console.error('Failed to cancel job:', error);
+    }
+  };
+
+  const handleRetry = () => {
+    retryFailedJob(job.id);
   };
   
   const handleOpenFolder = () => {
@@ -101,6 +130,11 @@ export function DownloadJobCard({ job, variant, className }: DownloadJobCardProp
             {variant === 'active' && job.progress !== undefined && (
               <div className="text-right">
                 <div className="text-sm font-medium">{job.progress}%</div>
+                {getProgressText() && (
+                  <div className="text-xs text-muted-foreground truncate max-w-32">
+                    {getProgressText()}
+                  </div>
+                )}
                 {job.current_file && (
                   <div className="text-xs text-muted-foreground truncate max-w-32">
                     {job.current_file}
@@ -115,9 +149,25 @@ export function DownloadJobCard({ job, variant, className }: DownloadJobCardProp
                 variant="ghost"
                 size="sm"
                 onClick={handleCancel}
+                disabled={cancelJobMutation.isPending}
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
               >
-                <X className="h-4 w-4" />
+                {cancelJobMutation.isPending ? (
+                  <Clock className="h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+            
+            {variant === 'failed' && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleRetry}
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              >
+                <RotateCcw className="h-4 w-4" />
               </Button>
             )}
             

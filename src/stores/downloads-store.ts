@@ -211,9 +211,9 @@ export const useDownloadsStore = create<DownloadsState>()(
         },
 
         cancelJob: (jobId) => {
-          // TODO: Implement API call to cancel job
-          console.log('Cancelling job:', jobId);
-          get().removeJob(jobId);
+          // Update job status to indicate cancellation in progress
+          get().updateJob(jobId, { status: 'failed', error: 'Cancelled by user' });
+          // Note: The actual API call is handled by the component using useCancelJob hook
         },
 
         // Enhanced actions
@@ -350,11 +350,23 @@ export const useDownloadsStore = create<DownloadsState>()(
           maxConcurrentDownloads: state.maxConcurrentDownloads,
           autoRetryFailed: state.autoRetryFailed,
           maxRetryAttempts: state.maxRetryAttempts,
+          queuePaused: state.queuePaused,
           filters: state.filters,
           sortBy: state.sortBy,
           sortOrder: state.sortOrder,
-          // Don't persist jobs, stats - they should be loaded fresh from API
+          // Persist completed jobs for history, but limit to last 100
+          jobs: state.jobs.filter(job => 
+            job.status === 'completed' || job.status === 'failed'
+          ).slice(-100),
         }),
+        // Hydrate persisted data on load
+        onRehydrateStorage: () => (state) => {
+          if (state) {
+            // Update computed arrays after hydration
+            state.setJobs(state.jobs);
+            state.updateStats();
+          }
+        },
       }
     )
   )

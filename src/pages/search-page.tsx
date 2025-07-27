@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Grid, List, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { useSearchStore } from '@/stores/search-store';
 import { useServicesStore } from '@/stores/services-store';
 import { useDownloadsStore } from '@/stores/downloads-store';
 import { useEnhancedSearch } from '@/hooks/use-enhanced-search';
-import { unshackleClient } from '@/lib/api';
+import { useStartDownload } from '@/lib/api/queries';
 import { type EnhancedSearchResult, type DownloadOptions } from '@/lib/types';
 
 export function SearchPage() {
@@ -28,13 +28,10 @@ export function SearchPage() {
   
   const { 
     services, 
-    loading: servicesLoading, 
-    setServices, 
-    setLoading: setServicesLoading, 
-    setError: setServicesError,
-    needsRefresh 
+    loading: servicesLoading
   } = useServicesStore();
   const { addJob } = useDownloadsStore();
+  const startDownloadMutation = useStartDownload();
 
   // Enhanced search with TMDB integration
   const {
@@ -48,26 +45,7 @@ export function SearchPage() {
     enabled: searchEnabled,
   });
 
-  // Load services on component mount or when refresh is needed
-  useEffect(() => {
-    const loadServices = async () => {
-      if (services.length === 0 || needsRefresh()) {
-        try {
-          setServicesLoading(true);
-          setServicesError(null);
-          const fetchedServices = await unshackleClient.getServices();
-          setServices(fetchedServices);
-        } catch (error) {
-          console.error('Failed to load services:', error);
-          setServicesError(error instanceof Error ? error.message : 'Failed to load services');
-        } finally {
-          setServicesLoading(false);
-        }
-      }
-    };
-
-    loadServices();
-  }, [services.length, needsRefresh, setServices, setServicesLoading, setServicesError]);
+  // Services are automatically loaded via the useServices hook in the main app
   
   const handleSearch = useCallback((query: string) => {
     if (!query.trim() || selectedServices.length === 0) return;
@@ -91,23 +69,43 @@ export function SearchPage() {
   const handleDownloadConfirm = useCallback(async (options: DownloadOptions) => {
     if (!selectedResult) return;
     
-    // Create a new download job
-    const job = {
-      id: `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      service: selectedResult.unshackleResult.service,
-      content_id: selectedResult.unshackleResult.id,
-      content_title: selectedResult.displayTitle,
-      status: 'queued' as const,
-      start_time: new Date().toISOString(),
-    };
-    
-    addJob(job);
-    
-    // TODO: Implement actual API call to start download
-    console.log('Starting download with options:', options);
-    
-    setSelectedResult(null);
-  }, [selectedResult, addJob]);
+    try {
+      // Start the download using the API
+      const jobId = await startDownloadMutation.mutateAsync({
+        service: selectedResult.unshackleResult.service,
+        content_id: selectedResult.unshackleResult.id,
+        quality: options.quality,
+        hdr10: options.hdr10,
+        dolby_vision: options.dolby_vision,
+        atmos: options.atmos,
+        subtitles: options.subtitles,
+        audio_tracks: options.audio_tracks,
+      });
+      
+      // Create a local job entry for immediate UI feedback
+      const job = {
+        id: jobId,
+        service: selectedResult.unshackleResult.service,
+        content_id: selectedResult.unshackleResult.id,
+        content_title: selectedResult.displayTitle,
+        status: 'queued' as const,
+        start_time: new Date().toISOString(),
+        progress: 0,
+      };
+      
+      addJob(job);
+      
+      // Add to search history to update with successful download initiation
+      addToSearchHistory(searchQuery, enhancedResults.length);
+      
+    } catch (error) {
+      console.error('Failed to start download:', error);
+      // Error is handled by the mutation's onError callback
+    } finally {
+      setSelectedResult(null);
+      setShowDownloadModal(false);
+    }
+  }, [selectedResult, startDownloadMutation, addJob, addToSearchHistory, searchQuery, enhancedResults.length]);
   
   const isLoading = searchLoading;
   const hasResults = enhancedResults.length > 0;
@@ -222,11 +220,14 @@ export function SearchPage() {
         <DownloadOptionsModal
           isOpen={showDownloadModal}
           onClose={() => {
-            setShowDownloadModal(false);
-            setSelectedResult(null);
+            if (!startDownloadMutation.isPending) {
+              setShowDownloadModal(false);
+              setSelectedResult(null);
+            }
           }}
           onConfirm={handleDownloadConfirm}
           result={selectedResult}
+          isLoading={startDownloadMutation.isPending}
         />
       )}
     </div>

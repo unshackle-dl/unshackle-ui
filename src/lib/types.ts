@@ -159,8 +159,9 @@ export interface DownloadOptions {
 
 // WebSocket Message Types
 export interface WebSocketMessage {
-  type: 'job_update' | 'service_status';
-  data: any;
+  type: 'job_update' | 'job_progress' | 'service_status' | 'ping' | 'pong' | 'system_notification' | 'queue_update';
+  data?: any;
+  timestamp?: number;
 }
 
 // UI State Types

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -12,13 +13,15 @@ interface DownloadOptionsModalProps {
   onClose: () => void;
   onConfirm: (options: DownloadOptions) => void;
   result: EnhancedSearchResult;
+  isLoading?: boolean;
 }
 
 export function DownloadOptionsModal({ 
   isOpen, 
   onClose, 
   onConfirm, 
-  result 
+  result,
+  isLoading = false
 }: DownloadOptionsModalProps) {
   const [options, setOptions] = useState<DownloadOptions>({
     quality: '1080p',
@@ -132,11 +135,18 @@ export function DownloadOptionsModal({
         </div>
         
         <div className="flex justify-end space-x-2 pt-4">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm}>
-            Start Download
+          <Button onClick={handleConfirm} disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Starting Download...
+              </>
+            ) : (
+              'Start Download'
+            )}
           </Button>
         </div>
       </DialogContent>
