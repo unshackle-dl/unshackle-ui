@@ -1,4 +1,5 @@
 import { type TMDBSearchResult, type TMDBMovieDetails, type TMDBTVDetails } from '../types';
+import { APIError, APIErrorType } from './api-errors';
 
 export class TMDBClient {
   private apiKey: string;
@@ -21,13 +22,39 @@ export class TMDBClient {
       }
     });
 
-    const response = await fetch(url.toString());
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.statusText}`);
+      const response = await fetch(url.toString(), {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw APIError.fromResponse(response, errorData);
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      
+      if (error instanceof Error) {
+        throw APIError.fromNetworkError(error);
+      }
+      
+      throw new APIError(
+        APIErrorType.UNKNOWN_ERROR,
+        'An unexpected error occurred',
+        undefined,
+        undefined,
+        error
+      );
     }
-
-    return response.json();
   }
 
   // Cache management

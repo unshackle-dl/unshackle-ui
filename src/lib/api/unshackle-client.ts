@@ -1,4 +1,5 @@
 import { type APIResponse, type SearchRequest, type SearchResult, type DownloadRequest, type DownloadJob, type ServiceInfo, type WebSocketMessage } from '../types';
+import { APIError, APIErrorType } from './api-errors';
 
 export class UnshackleAPIClient {
   private baseURL: string;
@@ -25,19 +26,44 @@ export class UnshackleAPIClient {
   ): Promise<APIResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
     
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers,
-      },
-    });
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          ...this.getHeaders(),
+          ...options.headers,
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw APIError.fromResponse(response, errorData);
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      
+      if (error instanceof Error) {
+        throw APIError.fromNetworkError(error);
+      }
+      
+      throw new APIError(
+        APIErrorType.UNKNOWN_ERROR,
+        'An unexpected error occurred',
+        undefined,
+        undefined,
+        error
+      );
     }
-
-    return response.json();
   }
 
   // Search for content

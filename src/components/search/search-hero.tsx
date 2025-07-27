@@ -5,9 +5,12 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { type ServiceInfo } from '@/lib/types';
 import { ServiceSelector } from './service-selector';
+import { SearchFilters } from './search-filters';
+
+type ContentType = 'movie' | 'tv' | 'music';
 
 interface SearchHeroProps {
-  onSearch: (query: string) => void;
+  onSearch: (query: string, contentTypes?: ContentType[]) => void;
   onServiceChange: (services: string[]) => void;
   services: ServiceInfo[];
   selectedServices: string[];
@@ -24,12 +27,13 @@ export function SearchHero({
   className 
 }: SearchHeroProps) {
   const [query, setQuery] = useState('');
+  const [selectedContentTypes, setSelectedContentTypes] = useState<ContentType[]>(['movie', 'tv']);
   
   const handleSearch = useCallback(() => {
     if (query.trim()) {
-      onSearch(query.trim());
+      onSearch(query.trim(), selectedContentTypes);
     }
-  }, [query, onSearch]);
+  }, [query, selectedContentTypes, onSearch]);
   
   const handleServiceToggle = useCallback((serviceId: string) => {
     const updated = selectedServices.includes(serviceId)
@@ -37,6 +41,14 @@ export function SearchHero({
       : [...selectedServices, serviceId];
     onServiceChange(updated);
   }, [selectedServices, onServiceChange]);
+
+  const handleContentTypeToggle = useCallback((type: ContentType) => {
+    setSelectedContentTypes(prev => 
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  }, []);
   
   return (
     <div className={cn("space-y-6", className)}>
@@ -64,12 +76,18 @@ export function SearchHero({
           </Button>
         </div>
         
-        <ServiceSelector
-          services={services}
-          selected={selectedServices}
-          onToggle={handleServiceToggle}
-          loading={servicesLoading}
-        />
+        <div className="grid md:grid-cols-2 gap-4">
+          <ServiceSelector
+            services={services}
+            selected={selectedServices}
+            onToggle={handleServiceToggle}
+            loading={servicesLoading}
+          />
+          <SearchFilters
+            selectedTypes={selectedContentTypes}
+            onTypeToggle={handleContentTypeToggle}
+          />
+        </div>
       </div>
     </div>
   );

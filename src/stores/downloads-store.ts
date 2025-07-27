@@ -17,6 +17,32 @@ interface DownloadsState {
   selectedJobIds: string[];
   showCompletedJobs: boolean;
 
+  // Statistics and Metrics
+  stats: {
+    totalDownloads: number;
+    totalCompleted: number;
+    totalFailed: number;
+    totalBytes: number;
+    downloadedBytes: number;
+    avgDownloadSpeed: number;
+    estimatedTimeRemaining: number;
+  };
+
+  // Queue Management
+  maxConcurrentDownloads: number;
+  queuePaused: boolean;
+  autoRetryFailed: boolean;
+  maxRetryAttempts: number;
+
+  // Filters and Sorting
+  filters: {
+    status: DownloadJob['status'][];
+    service: string[];
+    dateRange?: { start: Date; end: Date };
+  };
+  sortBy: 'date' | 'title' | 'service' | 'progress' | 'status';
+  sortOrder: 'asc' | 'desc';
+
   // Actions
   setJobs: (jobs: DownloadJob[]) => void;
   addJob: (job: DownloadJob) => void;
@@ -35,6 +61,29 @@ interface DownloadsState {
   clearCompletedJobs: () => void;
   retryFailedJob: (jobId: string) => void;
   cancelJob: (jobId: string) => void;
+
+  // Enhanced actions
+  bulkCancel: (jobIds: string[]) => void;
+  bulkRetry: (jobIds: string[]) => void;
+  pauseQueue: () => void;
+  resumeQueue: () => void;
+  reorderQueue: (fromIndex: number, toIndex: number) => void;
+  
+  updateStats: () => void;
+  getFilteredJobs: () => DownloadJob[];
+  getSortedJobs: (jobs: DownloadJob[]) => DownloadJob[];
+  
+  setMaxConcurrentDownloads: (max: number) => void;
+  setAutoRetryFailed: (autoRetry: boolean) => void;
+  setMaxRetryAttempts: (max: number) => void;
+  
+  setFilters: (filters: Partial<DownloadsState['filters']>) => void;
+  setSorting: (sortBy: DownloadsState['sortBy'], sortOrder: DownloadsState['sortOrder']) => void;
+  clearFilters: () => void;
+  
+  // WebSocket real-time updates
+  handleJobUpdate: (update: Partial<DownloadJob> & { id: string }) => void;
+  handleJobProgress: (jobId: string, progress: number, currentFile?: string) => void;
 }
 
 const defaultDownloadOptions: DownloadOptions = {
@@ -61,6 +110,29 @@ export const useDownloadsStore = create<DownloadsState>()(
 
         selectedJobIds: [],
         showCompletedJobs: true,
+
+        // New state
+        stats: {
+          totalDownloads: 0,
+          totalCompleted: 0,
+          totalFailed: 0,
+          totalBytes: 0,
+          downloadedBytes: 0,
+          avgDownloadSpeed: 0,
+          estimatedTimeRemaining: 0,
+        },
+
+        maxConcurrentDownloads: 3,
+        queuePaused: false,
+        autoRetryFailed: true,
+        maxRetryAttempts: 3,
+
+        filters: {
+          status: ['downloading', 'queued'],
+          service: [],
+        },
+        sortBy: 'date',
+        sortOrder: 'desc',
 
         // Actions
         setJobs: (jobs) => {
@@ -143,13 +215,145 @@ export const useDownloadsStore = create<DownloadsState>()(
           console.log('Cancelling job:', jobId);
           get().removeJob(jobId);
         },
+
+        // Enhanced actions
+        bulkCancel: (jobIds) => {
+          jobIds.forEach(jobId => get().cancelJob(jobId));
+        },
+
+        bulkRetry: (jobIds) => {
+          jobIds.forEach(jobId => get().retryFailedJob(jobId));
+        },
+
+        pauseQueue: () => set({ queuePaused: true }),
+        resumeQueue: () => set({ queuePaused: false }),
+
+        reorderQueue: (fromIndex, toIndex) => {
+          const { queuedJobs } = get();
+          const newQueue = [...queuedJobs];
+          const [removed] = newQueue.splice(fromIndex, 1);
+          newQueue.splice(toIndex, 0, removed);
+          
+          // Update the main jobs array
+          const { jobs } = get();
+          const newJobs = jobs.map(job => {
+            const queueIndex = newQueue.findIndex(q => q.id === job.id);
+            return queueIndex !== -1 ? newQueue[queueIndex] : job;
+          });
+          
+          get().setJobs(newJobs);
+        },
+
+        updateStats: () => {
+          const { jobs } = get();
+          
+          const stats = {
+            totalDownloads: jobs.length,
+            totalCompleted: jobs.filter(j => j.status === 'completed').length,
+            totalFailed: jobs.filter(j => j.status === 'failed').length,
+            totalBytes: jobs.reduce((sum, j) => sum + (j.total_bytes || 0), 0),
+            downloadedBytes: jobs.reduce((sum, j) => sum + (j.downloaded_bytes || 0), 0),
+            avgDownloadSpeed: 0, // Would need more complex calculation
+            estimatedTimeRemaining: 0, // Would need more complex calculation
+          };
+          
+          set({ stats });
+        },
+
+        getFilteredJobs: () => {
+          const { jobs, filters } = get();
+          
+          return jobs.filter(job => {
+            // Status filter
+            if (filters.status.length > 0 && !filters.status.includes(job.status)) {
+              return false;
+            }
+            
+            // Service filter
+            if (filters.service.length > 0 && !filters.service.includes(job.service)) {
+              return false;
+            }
+            
+            // Date range filter
+            if (filters.dateRange) {
+              const jobDate = new Date(job.start_time);
+              if (jobDate < filters.dateRange.start || jobDate > filters.dateRange.end) {
+                return false;
+              }
+            }
+            
+            return true;
+          });
+        },
+
+        getSortedJobs: (jobs) => {
+          const { sortBy, sortOrder } = get();
+          
+          return [...jobs].sort((a, b) => {
+            let comparison = 0;
+            
+            switch (sortBy) {
+              case 'date':
+                comparison = new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+                break;
+              case 'title':
+                comparison = a.content_title.localeCompare(b.content_title);
+                break;
+              case 'service':
+                comparison = a.service.localeCompare(b.service);
+                break;
+              case 'progress':
+                comparison = (a.progress || 0) - (b.progress || 0);
+                break;
+              case 'status':
+                comparison = a.status.localeCompare(b.status);
+                break;
+            }
+            
+            return sortOrder === 'asc' ? comparison : -comparison;
+          });
+        },
+
+        setMaxConcurrentDownloads: (max) => set({ maxConcurrentDownloads: max }),
+        setAutoRetryFailed: (autoRetry) => set({ autoRetryFailed: autoRetry }),
+        setMaxRetryAttempts: (max) => set({ maxRetryAttempts: max }),
+
+        setFilters: (newFilters) => {
+          const { filters } = get();
+          set({ filters: { ...filters, ...newFilters } });
+        },
+
+        setSorting: (sortBy, sortOrder) => set({ sortBy, sortOrder }),
+        
+        clearFilters: () => set({
+          filters: { status: [], service: [] }
+        }),
+
+        handleJobUpdate: (update) => {
+          get().updateJob(update.id, update);
+          get().updateStats();
+        },
+
+        handleJobProgress: (jobId, progress, currentFile) => {
+          get().updateJob(jobId, { 
+            progress, 
+            current_file: currentFile 
+          });
+          get().updateStats();
+        },
       }),
       {
         name: 'unshackle-downloads-store',
         partialize: (state) => ({
           defaultOptions: state.defaultOptions,
           showCompletedJobs: state.showCompletedJobs,
-          // Don't persist jobs - they should be loaded fresh from API
+          maxConcurrentDownloads: state.maxConcurrentDownloads,
+          autoRetryFailed: state.autoRetryFailed,
+          maxRetryAttempts: state.maxRetryAttempts,
+          filters: state.filters,
+          sortBy: state.sortBy,
+          sortOrder: state.sortOrder,
+          // Don't persist jobs, stats - they should be loaded fresh from API
         }),
       }
     )
