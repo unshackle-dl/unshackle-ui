@@ -18,7 +18,7 @@ export interface APIConfig {
 export const defaultAPIConfig: APIConfig = {
   unshackle: {
     baseURL: 'http://localhost:8888',
-    apiKey: '',
+    apiKey: 'development-key-change-me',
     timeout: 30000, // 30 seconds
     retryAttempts: 3,
     retryDelay: 1000, // 1 second
@@ -59,8 +59,9 @@ export function validateAPIConfig(config: APIConfig): { isValid: boolean; errors
     errors.push('Unshackle API base URL is required');
   }
   
-  if (!config.unshackle.apiKey) {
-    errors.push('Unshackle API key is required');
+  // Allow development key for local development
+  if (!config.unshackle.apiKey && config.unshackle.baseURL !== 'http://localhost:8888') {
+    errors.push('Unshackle API key is required for production environments');
   }
 
   try {

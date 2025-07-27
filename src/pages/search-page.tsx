@@ -8,6 +8,7 @@ import { DownloadOptionsModal } from '@/components/downloads/download-options-mo
 import { useSearchStore } from '@/stores/search-store';
 import { useServicesStore } from '@/stores/services-store';
 import { useDownloadsStore } from '@/stores/downloads-store';
+import { useEnhancedSearch } from '@/hooks/use-enhanced-search';
 import { unshackleClient } from '@/lib/api';
 import { type EnhancedSearchResult, type DownloadOptions } from '@/lib/types';
 
@@ -15,16 +16,14 @@ export function SearchPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedResult, setSelectedResult] = useState<EnhancedSearchResult | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchEnabled, setSearchEnabled] = useState(false);
   
   const {
-    tmdbQuery,
-    tmdbLoading,
     selectedServices,
-    aggregatedResults,
-    aggregationLoading,
-    setTmdbQuery,
+    selectedContentTypes,
     setSelectedServices,
-    // Actions would be implemented with API integration
+    addToSearchHistory,
   } = useSearchStore();
   
   const { 
@@ -36,6 +35,18 @@ export function SearchPage() {
     needsRefresh 
   } = useServicesStore();
   const { addJob } = useDownloadsStore();
+
+  // Enhanced search with TMDB integration
+  const {
+    results: enhancedResults,
+    isLoading: searchLoading,
+    error: searchError,
+  } = useEnhancedSearch({
+    query: searchQuery,
+    services: selectedServices,
+    contentTypes: selectedContentTypes,
+    enabled: searchEnabled,
+  });
 
   // Load services on component mount or when refresh is needed
   useEffect(() => {
@@ -58,11 +69,15 @@ export function SearchPage() {
     loadServices();
   }, [services.length, needsRefresh, setServices, setServicesLoading, setServicesError]);
   
-  const handleSearch = useCallback(async (query: string) => {
-    setTmdbQuery(query);
-    // TODO: Implement TMDB search and Unshackle service search
-    console.log('Searching for:', query, 'on services:', selectedServices);
-  }, [selectedServices, setTmdbQuery]);
+  const handleSearch = useCallback((query: string) => {
+    if (!query.trim() || selectedServices.length === 0) return;
+    
+    setSearchQuery(query);
+    setSearchEnabled(true);
+    
+    // Add to search history when search is initiated
+    addToSearchHistory(query, 0); // We'll update with actual count when results come in
+  }, [selectedServices, addToSearchHistory]);
   
   const handleServiceChange = useCallback((services: string[]) => {
     setSelectedServices(services);
@@ -94,8 +109,8 @@ export function SearchPage() {
     setSelectedResult(null);
   }, [selectedResult, addJob]);
   
-  const isLoading = tmdbLoading || aggregationLoading;
-  const hasResults = aggregatedResults.length > 0;
+  const isLoading = searchLoading;
+  const hasResults = enhancedResults.length > 0;
   
   return (
     <div className="space-y-6">
@@ -116,7 +131,7 @@ export function SearchPage() {
             <div>
               {hasResults && (
                 <p className="text-sm text-muted-foreground">
-                  Found {aggregatedResults.length} results for "{tmdbQuery}"
+                  Found {enhancedResults.length} results for "{searchQuery}"
                 </p>
               )}
             </div>
@@ -148,6 +163,30 @@ export function SearchPage() {
                 <div className="text-center space-y-2">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto" />
                   <p className="text-muted-foreground">Searching across services...</p>
+                  <p className="text-xs text-muted-foreground">
+                    Searching {selectedServices.length} service{selectedServices.length !== 1 ? 's' : ''} and enriching with TMDB data
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Error State */}
+          {searchError && !isLoading && (
+            <Card>
+              <CardContent className="text-center py-12">
+                <div className="space-y-2">
+                  <p className="text-lg font-medium text-destructive">Search Error</p>
+                  <p className="text-muted-foreground">{searchError}</p>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setSearchEnabled(false);
+                      setTimeout(() => setSearchEnabled(true), 100);
+                    }}
+                  >
+                    Retry Search
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -156,7 +195,7 @@ export function SearchPage() {
           {/* Results Grid */}
           {hasResults && !isLoading && (
             <ContentGrid
-              results={aggregatedResults}
+              results={enhancedResults}
               onDownload={handleDownload}
               viewMode={viewMode}
             />
@@ -165,7 +204,7 @@ export function SearchPage() {
       )}
       
       {/* Empty State */}
-      {!hasResults && !isLoading && tmdbQuery && (
+      {!hasResults && !isLoading && searchQuery && (
         <Card>
           <CardContent className="text-center py-12">
             <div className="space-y-2">
