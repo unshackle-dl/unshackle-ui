@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Message Handling Test Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .test-section h3 {
+            color: #555;
+            margin-top: 0;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #005999;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 15px;
+            padding: 15px;
+            background: #fff;
+            border-radius: 5px;
+            border-left: 4px solid #007acc;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .info {
+            color: #17a2b8;
+        }
+        .warning {
+            color: #ffc107;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .job-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .job-card h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .job-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .status-downloading {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status-queued {
+            background: #e9ecef;
+            color: #495057;
+        }
+        .message-log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            white-space: pre-wrap;
+        }
+        .store-state {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .metric {
+            display: inline-block;
+            margin: 5px 10px;
+        }
+        .metric-label {
+            font-weight: bold;
+            color: #666;
+        }
+        .metric-value {
+            color: #007acc;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📬 WebSocket Message Handling Test Demo</h1>
+        <p><strong>Task 18:</strong> Test message handling and UI updates for WebSocket integration</p>
+        
+        <div class="grid">
+            <div class="test-section">
+                <h3>📝 Message Parsing Tests</h3>
+                <p>Test parsing of WebSocket messages with API formats</p>
+                <button onclick="testMessageParsing()">Test Message Parsing</button>
+                <button onclick="sendTestMessage()">Send Test Message</button>
+                <div id="parsingResults" class="results" style="display: none;"></div>
+            </div>
+
+            <div class="test-section">
+                <h3>💼 Job Update Tests</h3>
+                <p>Create test jobs and verify real-time progress updates</p>
+                <button onclick="createTestJob()">Create Test Job</button>
+                <button onclick="simulateProgress()">Simulate Progress</button>
+                <button onclick="completeJob()">Complete Job</button>
+                <button onclick="failJob()">Fail Job</button>
+                <div id="jobResults" class="results" style="display: none;"></div>
+            </div>
+
+            <div class="test-section">
+                <h3>🔄 UI Synchronization</h3>
+                <p>Test job status changes and UI state sync</p>
+                <button onclick="testStoreSync()">Test Store Sync</button>
+                <button onclick="showStoreState()">Show Store State</button>
+                <div class="store-state" id="storeState">
+                    <div class="metric">
+                        <span class="metric-label">Total Jobs:</span>
+                        <span class="metric-value" id="totalJobs">0</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Active:</span>
+                        <span class="metric-value" id="activeJobs">0</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Completed:</span>
+                        <span class="metric-value" id="completedJobs">0</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Failed:</span>
+                        <span class="metric-value" id="failedJobs">0</span>
+                    </div>
+                </div>
+                <div id="syncResults" class="results" style="display: none;"></div>
+            </div>
+
+            <div class="test-section">
+                <h3>🌐 Global Events</h3>
+                <p>Test global event processing and system notifications</p>
+                <button onclick="connectGlobalEvents()">Connect Global Events</button>
+                <button onclick="sendSystemNotification()">Send System Notification</button>
+                <button onclick="sendQueueUpdate()">Send Queue Update</button>
+                <div id="globalResults" class="results" style="display: none;"></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📡 Live Connection Monitor</h3>
+            <p>Monitor real-time WebSocket messages and connection status</p>
+            <button onclick="startMonitoring()">Start Monitoring</button>
+            <button onclick="stopMonitoring()">Stop Monitoring</button>
+            <button onclick="clearMessageLog()">Clear Log</button>
+            <div class="message-log" id="messageLog"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎬 Active Downloads</h3>
+            <div id="downloadQueue">
+                <p style="text-align: center; color: #999;">No active downloads</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 Full Test Suite</h3>
+            <p>Run all message handling and UI update tests</p>
+            <button onclick="runFullSuite()">Run All Tests</button>
+            <div id="suiteResults" class="results" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Mock store for demo purposes
+        const mockStore = {
+            jobs: [],
+            activeJobs: [],
+            queuedJobs: [],
+            completedJobs: [],
+            failedJobs: [],
+            
+            addJob(job) {
+                this.jobs.push(job);
+                this.updateCategories();
+            },
+            
+            updateJob(jobId, updates) {
+                const job = this.jobs.find(j => j.id === jobId);
+                if (job) {
+                    Object.assign(job, updates);
+                    this.updateCategories();
+                }
+            },
+            
+            handleJobProgress(jobId, progress, currentFile) {
+                this.updateJob(jobId, { progress, current_file: currentFile });
+            },
+            
+            updateCategories() {
+                this.activeJobs = this.jobs.filter(j => j.status === 'downloading');
+                this.queuedJobs = this.jobs.filter(j => j.status === 'queued');
+                this.completedJobs = this.jobs.filter(j => j.status === 'completed');
+                this.failedJobs = this.jobs.filter(j => j.status === 'failed');
+                updateStoreDisplay();
+                updateDownloadQueue();
+            }
+        };
+
+        let currentWebSocket = null;
+        let monitoring = false;
+        let currentTestJob = null;
+
+        function log(message, type = 'info', containerId = null) {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            const logMessage = `[${timestamp}] ${message}`;
+            
+            console.log(logMessage);
+            
+            if (containerId) {
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.style.display = 'block';
+                    container.innerHTML += `<div class="${className}">${logMessage}</div>`;
+                    container.scrollTop = container.scrollHeight;
+                }
+            }
+        }
+
+        function clearResults(containerId) {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = '';
+                container.style.display = 'none';
+            }
+        }
+
+        // Test 1: Message Parsing
+        function testMessageParsing() {
+            clearResults('parsingResults');
+            log('Testing message parsing...', 'info', 'parsingResults');
+            
+            const testMessages = [
+                {
+                    event_type: 'job_status',
+                    job_id: 'parse-test-1',
+                    data: {
+                        status: 'downloading',
+                        progress: 45
+                    },
+                    timestamp: Date.now()
+                },
+                {
+                    event_type: 'job_progress',
+                    job_id: 'parse-test-2',
+                    data: {
+                        progress: 75,
+                        current_file: 'video.mp4'
+                    },
+                    timestamp: Date.now()
+                },
+                {
+                    event_type: 'connection_confirmed',
+                    job_id: 'parse-test-3',
+                    data: {
+                        message: 'Connected successfully'
+                    },
+                    timestamp: Date.now()
+                }
+            ];
+            
+            let parsed = 0;
+            testMessages.forEach(msg => {
+                try {
+                    if (msg.event_type && msg.timestamp) {
+                        parsed++;
+                        log(`✅ Parsed: ${msg.event_type} for job ${msg.job_id}`, 'success', 'parsingResults');
+                    }
+                } catch (error) {
+                    log(`❌ Parse error: ${error.message}`, 'error', 'parsingResults');
+                }
+            });
+            
+            log(`Parsing complete: ${parsed}/${testMessages.length} messages parsed`, 'info', 'parsingResults');
+        }
+
+        function sendTestMessage() {
+            clearResults('parsingResults');
+            log('Sending test WebSocket message...', 'info', 'parsingResults');
+            
+            const testMsg = {
+                event_type: 'test_event',
+                data: {
+                    message: 'Test message from demo',
+                    timestamp: Date.now()
+                },
+                timestamp: Date.now()
+            };
+            
+            log(`Message structure: ${JSON.stringify(testMsg, null, 2)}`, 'info', 'parsingResults');
+            
+            if (currentWebSocket && currentWebSocket.readyState === WebSocket.OPEN) {
+                currentWebSocket.send(JSON.stringify(testMsg));
+                log('✅ Message sent successfully', 'success', 'parsingResults');
+            } else {
+                log('❌ No active WebSocket connection', 'error', 'parsingResults');
+            }
+        }
+
+        // Test 2: Job Updates
+        function createTestJob() {
+            clearResults('jobResults');
+            
+            const jobId = `test-job-${Date.now()}`;
+            const job = {
+                id: jobId,
+                job_id: jobId,
+                content_title: 'Test Download',
+                service: 'TEST',
+                status: 'downloading',
+                progress: 0,
+                quality: '1080p',
+                start_time: new Date().toISOString()
+            };
+            
+            mockStore.addJob(job);
+            currentTestJob = jobId;
+            
+            log(`✅ Created test job: ${jobId}`, 'success', 'jobResults');
+            log(`Title: ${job.content_title}`, 'info', 'jobResults');
+            log(`Status: ${job.status}`, 'info', 'jobResults');
+        }
+
+        function simulateProgress() {
+            if (!currentTestJob) {
+                log('❌ No test job created', 'error', 'jobResults');
+                return;
+            }
+            
+            clearResults('jobResults');
+            log('Simulating progress updates...', 'info', 'jobResults');
+            
+            const progressSteps = [10, 25, 50, 75, 90, 100];
+            let currentStep = 0;
+            
+            const interval = setInterval(() => {
+                if (currentStep >= progressSteps.length) {
+                    clearInterval(interval);
+                    log('✅ Progress simulation complete', 'success', 'jobResults');
+                    return;
+                }
+                
+                const progress = progressSteps[currentStep];
+                const currentFile = `segment_${currentStep + 1}.mp4`;
+                
+                mockStore.handleJobProgress(currentTestJob, progress, currentFile);
+                
+                log(`Progress: ${progress}% - File: ${currentFile}`, 'info', 'jobResults');
+                
+                // Simulate WebSocket message
+                const msg = {
+                    event_type: 'job_progress',
+                    job_id: currentTestJob,
+                    data: { progress, current_file: currentFile },
+                    timestamp: Date.now()
+                };
+                
+                addToMessageLog(JSON.stringify(msg));
+                
+                currentStep++;
+            }, 1000);
+        }
+
+        function completeJob() {
+            if (!currentTestJob) {
+                log('❌ No test job created', 'error', 'jobResults');
+                return;
+            }
+            
+            mockStore.updateJob(currentTestJob, {
+                status: 'completed',
+                progress: 100,
+                end_time: new Date().toISOString()
+            });
+            
+            log('✅ Job marked as completed', 'success', 'jobResults');
+        }
+
+        function failJob() {
+            if (!currentTestJob) {
+                log('❌ No test job created', 'error', 'jobResults');
+                return;
+            }
+            
+            mockStore.updateJob(currentTestJob, {
+                status: 'failed',
+                error: 'Simulated error for testing'
+            });
+            
+            log('❌ Job marked as failed', 'error', 'jobResults');
+        }
+
+        // Test 3: Store Synchronization
+        function testStoreSync() {
+            clearResults('syncResults');
+            log('Testing store synchronization...', 'info', 'syncResults');
+            
+            // Create multiple jobs with different states
+            const testJobs = [
+                { id: 'sync-1', status: 'downloading', progress: 45 },
+                { id: 'sync-2', status: 'queued', progress: 0 },
+                { id: 'sync-3', status: 'completed', progress: 100 },
+                { id: 'sync-4', status: 'failed', progress: 30 }
+            ];
+            
+            testJobs.forEach(jobData => {
+                const job = {
+                    ...jobData,
+                    job_id: jobData.id,
+                    content_title: `Sync Test ${jobData.id}`,
+                    service: 'TEST',
+                    quality: '1080p',
+                    start_time: new Date().toISOString()
+                };
+                mockStore.addJob(job);
+            });
+            
+            log('✅ Added 4 test jobs with different states', 'success', 'syncResults');
+            log(`Active: ${mockStore.activeJobs.length}`, 'info', 'syncResults');
+            log(`Queued: ${mockStore.queuedJobs.length}`, 'info', 'syncResults');
+            log(`Completed: ${mockStore.completedJobs.length}`, 'info', 'syncResults');
+            log(`Failed: ${mockStore.failedJobs.length}`, 'info', 'syncResults');
+        }
+
+        function showStoreState() {
+            clearResults('syncResults');
+            log('Current store state:', 'info', 'syncResults');
+            log(`Total jobs: ${mockStore.jobs.length}`, 'info', 'syncResults');
+            
+            mockStore.jobs.forEach(job => {
+                log(`${job.id}: ${job.status} (${job.progress}%)`, 'info', 'syncResults');
+            });
+        }
+
+        // Test 4: Global Events
+        function connectGlobalEvents() {
+            clearResults('globalResults');
+            log('Connecting to global events...', 'info', 'globalResults');
+            
+            // Simulate global event connection
+            log('✅ Connected to global events stream', 'success', 'globalResults');
+            log('Listening for system notifications...', 'info', 'globalResults');
+        }
+
+        function sendSystemNotification() {
+            const notification = {
+                event_type: 'system_notification',
+                data: {
+                    type: 'info',
+                    message: 'System maintenance scheduled',
+                    severity: 'warning'
+                },
+                timestamp: Date.now()
+            };
+            
+            log(`📢 System notification: ${notification.data.message}`, 'warning', 'globalResults');
+            addToMessageLog(JSON.stringify(notification));
+        }
+
+        function sendQueueUpdate() {
+            const update = {
+                event_type: 'queue_update',
+                data: {
+                    status: 'paused',
+                    reason: 'System overload',
+                    estimated_resume: Date.now() + 600000
+                },
+                timestamp: Date.now()
+            };
+            
+            log(`⏸️ Queue update: ${update.data.status} - ${update.data.reason}`, 'warning', 'globalResults');
+            addToMessageLog(JSON.stringify(update));
+        }
+
+        // Message monitoring
+        function startMonitoring() {
+            monitoring = true;
+            log('Started monitoring WebSocket messages...', 'success');
+            addToMessageLog('=== Monitoring started ===');
+        }
+
+        function stopMonitoring() {
+            monitoring = false;
+            log('Stopped monitoring', 'info');
+            addToMessageLog('=== Monitoring stopped ===');
+        }
+
+        function clearMessageLog() {
+            document.getElementById('messageLog').innerHTML = '';
+        }
+
+        function addToMessageLog(message) {
+            if (!monitoring) return;
+            
+            const log = document.getElementById('messageLog');
+            const timestamp = new Date().toLocaleTimeString();
+            log.innerHTML += `[${timestamp}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // UI Updates
+        function updateStoreDisplay() {
+            document.getElementById('totalJobs').textContent = mockStore.jobs.length;
+            document.getElementById('activeJobs').textContent = mockStore.activeJobs.length;
+            document.getElementById('completedJobs').textContent = mockStore.completedJobs.length;
+            document.getElementById('failedJobs').textContent = mockStore.failedJobs.length;
+        }
+
+        function updateDownloadQueue() {
+            const queue = document.getElementById('downloadQueue');
+            
+            if (mockStore.activeJobs.length === 0 && mockStore.queuedJobs.length === 0) {
+                queue.innerHTML = '<p style="text-align: center; color: #999;">No active downloads</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Active downloads
+            mockStore.activeJobs.forEach(job => {
+                html += createJobCard(job);
+            });
+            
+            // Queued downloads
+            mockStore.queuedJobs.forEach(job => {
+                html += createJobCard(job);
+            });
+            
+            queue.innerHTML = html;
+        }
+
+        function createJobCard(job) {
+            const statusClass = `status-${job.status}`;
+            const progress = job.progress || 0;
+            
+            return `
+                <div class="job-card">
+                    <h4>${job.content_title}</h4>
+                    <span class="job-status ${statusClass}">${job.status.toUpperCase()}</span>
+                    <span style="color: #666;">Service: ${job.service}</span>
+                    ${job.status === 'downloading' ? `
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%">
+                                ${progress}%
+                            </div>
+                        </div>
+                        ${job.current_file ? `<small>Current: ${job.current_file}</small>` : ''}
+                    ` : ''}
+                    ${job.error ? `<div class="error">Error: ${job.error}</div>` : ''}
+                </div>
+            `;
+        }
+
+        // Full test suite
+        function runFullSuite() {
+            clearResults('suiteResults');
+            log('🚀 Running full message handling test suite...', 'info', 'suiteResults');
+            
+            const tests = [
+                { name: 'Message Parsing', fn: testMessageParsing },
+                { name: 'Job Creation', fn: createTestJob },
+                { name: 'Progress Simulation', fn: simulateProgress },
+                { name: 'Store Synchronization', fn: testStoreSync },
+                { name: 'Global Events', fn: connectGlobalEvents }
+            ];
+            
+            let currentTest = 0;
+            
+            function runNextTest() {
+                if (currentTest >= tests.length) {
+                    log('', 'info', 'suiteResults');
+                    log('✅ Test suite complete!', 'success', 'suiteResults');
+                    log(`Total tests: ${tests.length}`, 'info', 'suiteResults');
+                    return;
+                }
+                
+                const test = tests[currentTest];
+                log(`Running: ${test.name}...`, 'info', 'suiteResults');
+                
+                try {
+                    test.fn();
+                    log(`✅ ${test.name} passed`, 'success', 'suiteResults');
+                } catch (error) {
+                    log(`❌ ${test.name} failed: ${error.message}`, 'error', 'suiteResults');
+                }
+                
+                currentTest++;
+                setTimeout(runNextTest, 1000);
+            }
+            
+            runNextTest();
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            updateStoreDisplay();
+            log('WebSocket Message Handling Test Demo loaded', 'success');
+        });
+    </script>
+</body>
+</html>

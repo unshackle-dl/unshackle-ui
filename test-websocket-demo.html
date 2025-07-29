@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Authentication Test Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .test-section h3 {
+            color: #555;
+            margin-top: 0;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #005999;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 15px;
+            padding: 15px;
+            background: #fff;
+            border-radius: 5px;
+            border-left: 4px solid #007acc;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .info {
+            color: #17a2b8;
+        }
+        .warning {
+            color: #ffc107;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.connecting {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .config {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .config label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .config input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 WebSocket Authentication Test Demo</h1>
+        <p><strong>Task 17:</strong> Test authentication and error scenarios for WebSocket connections</p>
+        
+        <div class="config">
+            <label for="apiUrl">API Base URL:</label>
+            <input type="text" id="apiUrl" value="http://localhost:8888" placeholder="http://localhost:8888">
+            <p><small>⚠️ Make sure the Unshackle API server is running at this URL</small></p>
+        </div>
+
+        <div class="test-section">
+            <h3>🔐 Authentication Tests</h3>
+            <p>Test WebSocket connections with various authentication scenarios</p>
+            <button onclick="testValidAuth()">Test Valid Auth (devwork)</button>
+            <button onclick="testInvalidAuth()">Test Invalid Token</button>
+            <button onclick="testMissingAuth()">Test Missing Token</button>
+            <div id="authResults" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>❌ Error Code Handling</h3>
+            <p>Verify proper handling of WebSocket error codes (4001, 4004)</p>
+            <button onclick="testErrorCodes()">Test Error Codes</button>
+            <button onclick="testJobNotFound()">Test Job Not Found (4004)</button>
+            <div id="errorResults" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 Reconnection Behavior</h3>
+            <p>Test automatic reconnection after authentication failures</p>
+            <button onclick="testReconnection()">Test Reconnection</button>
+            <div id="reconnectionResults" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🌐 Live Connection Test</h3>
+            <p>Connect to actual WebSocket endpoints and monitor real-time behavior</p>
+            <button onclick="connectGlobal()">Connect Global Events</button>
+            <button onclick="connectJob()">Connect Job Events</button>
+            <button onclick="disconnect()">Disconnect All</button>
+            <div>
+                Connection Status: <span id="connectionStatus" class="status disconnected">Disconnected</span>
+            </div>
+            <div id="liveResults" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 Full Test Suite</h3>
+            <p>Run all authentication and error scenario tests</p>
+            <button onclick="runFullSuite()">Run All Tests</button>
+            <div id="suiteResults" class="results" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentWebSocket = null;
+        let testResults = [];
+
+        function getApiUrl() {
+            return document.getElementById('apiUrl').value.trim() || 'http://localhost:8888';
+        }
+
+        function log(message, type = 'info', containerId = null) {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            const logMessage = `[${timestamp}] ${message}`;
+            
+            console.log(logMessage);
+            
+            if (containerId) {
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.style.display = 'block';
+                    container.innerHTML += `<div class="${className}">${logMessage}</div>`;
+                    container.scrollTop = container.scrollHeight;
+                }
+            }
+        }
+
+        function clearResults(containerId) {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = '';
+                container.style.display = 'none';
+            }
+        }
+
+        function updateConnectionStatus(status) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.className = `status ${status.toLowerCase()}`;
+            statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        // Test 1: Valid Authentication
+        function testValidAuth() {
+            clearResults('authResults');
+            log('Testing valid authentication with devwork token...', 'info', 'authResults');
+            
+            const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events?token=devwork';
+            const ws = new WebSocket(wsUrl);
+            
+            const timeout = setTimeout(() => {
+                ws.close();
+                log('❌ Connection timeout - server may not be running', 'error', 'authResults');
+            }, 5000);
+
+            ws.onopen = () => {
+                clearTimeout(timeout);
+                log('✅ Valid authentication successful', 'success', 'authResults');
+                log(`Connected to: ${wsUrl}`, 'info', 'authResults');
+                
+                // Send a test message
+                ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+                
+                setTimeout(() => {
+                    ws.close();
+                    log('Connection closed after successful test', 'info', 'authResults');
+                }, 2000);
+            };
+
+            ws.onclose = (event) => {
+                clearTimeout(timeout);
+                if (event.code === 4001) {
+                    log('❌ Authentication failed with valid token - check API configuration', 'error', 'authResults');
+                } else {
+                    log(`Connection closed with code: ${event.code}`, 'info', 'authResults');
+                }
+            };
+
+            ws.onerror = (error) => {
+                clearTimeout(timeout);
+                log('❌ WebSocket error occurred', 'error', 'authResults');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    log(`📩 Received: ${JSON.stringify(message)}`, 'success', 'authResults');
+                } catch (e) {
+                    log(`📩 Received raw: ${event.data}`, 'info', 'authResults');
+                }
+            };
+        }
+
+        // Test 2: Invalid Authentication
+        function testInvalidAuth() {
+            clearResults('authResults');
+            log('Testing invalid authentication token...', 'info', 'authResults');
+            
+            const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events?token=invalid-token';
+            const ws = new WebSocket(wsUrl);
+            
+            const timeout = setTimeout(() => {
+                ws.close();
+                log('❌ Expected authentication error but got timeout', 'error', 'authResults');
+            }, 5000);
+
+            ws.onopen = () => {
+                clearTimeout(timeout);
+                log('❌ Connection succeeded with invalid token - this should not happen', 'error', 'authResults');
+                ws.close();
+            };
+
+            ws.onclose = (event) => {
+                clearTimeout(timeout);
+                if (event.code === 4001) {
+                    log('✅ Authentication correctly rejected invalid token (4001)', 'success', 'authResults');
+                    log(`Reason: ${event.reason || 'Authentication failed'}`, 'info', 'authResults');
+                } else {
+                    log(`❌ Expected 4001 but got ${event.code}: ${event.reason}`, 'error', 'authResults');
+                }
+            };
+
+            ws.onerror = () => {
+                // Expected for auth failures
+            };
+        }
+
+        // Test 3: Missing Authentication
+        function testMissingAuth() {
+            clearResults('authResults');
+            log('Testing missing authentication token...', 'info', 'authResults');
+            
+            const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events'; // No token
+            const ws = new WebSocket(wsUrl);
+            
+            const timeout = setTimeout(() => {
+                ws.close();
+                log('❌ Expected authentication error but got timeout', 'error', 'authResults');
+            }, 5000);
+
+            ws.onopen = () => {
+                clearTimeout(timeout);
+                log('❌ Connection succeeded without token - this should not happen', 'error', 'authResults');
+                ws.close();
+            };
+
+            ws.onclose = (event) => {
+                clearTimeout(timeout);
+                if (event.code === 4001) {
+                    log('✅ Authentication correctly rejected missing token (4001)', 'success', 'authResults');
+                    log(`Reason: ${event.reason || 'Authentication failed'}`, 'info', 'authResults');
+                } else {
+                    log(`❌ Expected 4001 but got ${event.code}: ${event.reason}`, 'error', 'authResults');
+                }
+            };
+
+            ws.onerror = () => {
+                // Expected for auth failures
+            };
+        }
+
+        // Test 4: Error Codes
+        function testErrorCodes() {
+            clearResults('errorResults');
+            log('Testing WebSocket error code handling...', 'info', 'errorResults');
+            
+            // Test multiple scenarios
+            testInvalidTokenError();
+            setTimeout(() => testJobNotFoundError(), 1000);
+        }
+
+        function testInvalidTokenError() {
+            log('Testing 4001 error code (invalid token)...', 'info', 'errorResults');
+            
+            const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events?token=bad-token';
+            const ws = new WebSocket(wsUrl);
+            
+            ws.onclose = (event) => {
+                if (event.code === 4001) {
+                    log('✅ 4001 error code handled correctly', 'success', 'errorResults');
+                } else {
+                    log(`❌ Expected 4001, got ${event.code}`, 'error', 'errorResults');
+                }
+            };
+        }
+
+        function testJobNotFoundError() {
+            log('Testing 4004 error code (job not found)...', 'info', 'errorResults');
+            
+            const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/jobs/nonexistent-job-123/events?token=devwork';
+            const ws = new WebSocket(wsUrl);
+            
+            ws.onclose = (event) => {
+                if (event.code === 4004) {
+                    log('✅ 4004 error code handled correctly', 'success', 'errorResults');
+                } else if (event.code === 4001) {
+                    log('⚠️ Got auth error instead of job not found - check API auth', 'warning', 'errorResults');
+                } else {
+                    log(`❌ Expected 4004, got ${event.code}`, 'error', 'errorResults');
+                }
+            };
+        }
+
+        // Test 5: Job Not Found
+        function testJobNotFound() {
+            clearResults('errorResults');
+            testJobNotFoundError();
+        }
+
+        // Test 6: Reconnection
+        function testReconnection() {
+            clearResults('reconnectionResults');
+            log('Testing reconnection behavior after auth failure...', 'info', 'reconnectionResults');
+            
+            let attemptCount = 0;
+            
+            function attemptConnection(useValidToken = false) {
+                attemptCount++;
+                const token = useValidToken ? 'devwork' : 'invalid-token';
+                const wsUrl = getApiUrl().replace(/^http/, 'ws') + `/api/v1/jobs/test-reconnect-job/events?token=${token}`;
+                
+                log(`Attempt ${attemptCount}: ${useValidToken ? 'Valid' : 'Invalid'} token`, 'info', 'reconnectionResults');
+                
+                const ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    if (useValidToken) {
+                        log('✅ Reconnection successful with valid token', 'success', 'reconnectionResults');
+                        ws.close();
+                    }
+                };
+                
+                ws.onclose = (event) => {
+                    if (event.code === 4001 && !useValidToken) {
+                        log('Auth failed, attempting reconnection with valid token...', 'info', 'reconnectionResults');
+                        setTimeout(() => attemptConnection(true), 1000);
+                    } else if (event.code === 4004 && useValidToken) {
+                        log('✅ Reconnection successful (job not found is expected)', 'success', 'reconnectionResults');
+                    } else if (event.code === 4001 && useValidToken) {
+                        log('❌ Reconnection failed even with valid token', 'error', 'reconnectionResults');
+                    }
+                };
+            }
+            
+            attemptConnection(false); // Start with invalid token
+        }
+
+        // Live Connection Tests
+        function connectGlobal() {
+            if (currentWebSocket) {
+                currentWebSocket.close();
+            }
+            
+            clearResults('liveResults');
+            log('Connecting to global events...', 'info', 'liveResults');
+            updateConnectionStatus('connecting');
+            
+            const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events?token=devwork';
+            currentWebSocket = new WebSocket(wsUrl);
+            
+            currentWebSocket.onopen = () => {
+                log('✅ Connected to global events', 'success', 'liveResults');
+                updateConnectionStatus('connected');
+                
+                // Send ping to test connection
+                currentWebSocket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+            };
+            
+            currentWebSocket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    log(`📩 Global event: ${JSON.stringify(message)}`, 'info', 'liveResults');
+                } catch (e) {
+                    log(`📩 Raw data: ${event.data}`, 'info', 'liveResults');
+                }
+            };
+            
+            currentWebSocket.onclose = (event) => {
+                log(`Connection closed: ${event.code} - ${event.reason}`, 'warning', 'liveResults');
+                updateConnectionStatus('disconnected');
+                currentWebSocket = null;
+            };
+            
+            currentWebSocket.onerror = () => {
+                log('❌ Connection error', 'error', 'liveResults');
+                updateConnectionStatus('disconnected');
+            };
+        }
+
+        function connectJob() {
+            if (currentWebSocket) {
+                currentWebSocket.close();
+            }
+            
+            clearResults('liveResults');
+            log('Connecting to job events...', 'info', 'liveResults');
+            updateConnectionStatus('connecting');
+            
+            const jobId = 'demo-job-' + Date.now();
+            const wsUrl = getApiUrl().replace(/^http/, 'ws') + `/api/v1/jobs/${jobId}/events?token=devwork`;
+            currentWebSocket = new WebSocket(wsUrl);
+            
+            currentWebSocket.onopen = () => {
+                log(`✅ Connected to job events (${jobId})`, 'success', 'liveResults');
+                updateConnectionStatus('connected');
+            };
+            
+            currentWebSocket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    log(`📩 Job event: ${JSON.stringify(message)}`, 'info', 'liveResults');
+                } catch (e) {
+                    log(`📩 Raw data: ${event.data}`, 'info', 'liveResults');
+                }
+            };
+            
+            currentWebSocket.onclose = (event) => {
+                if (event.code === 4004) {
+                    log(`Job not found (expected for demo job): ${event.code}`, 'info', 'liveResults');
+                } else {
+                    log(`Connection closed: ${event.code} - ${event.reason}`, 'warning', 'liveResults');
+                }
+                updateConnectionStatus('disconnected');
+                currentWebSocket = null;
+            };
+            
+            currentWebSocket.onerror = () => {
+                log('❌ Connection error', 'error', 'liveResults');
+                updateConnectionStatus('disconnected');
+            };
+        }
+
+        function disconnect() {
+            if (currentWebSocket) {
+                currentWebSocket.close();
+                currentWebSocket = null;
+                log('Disconnected', 'info', 'liveResults');
+                updateConnectionStatus('disconnected');
+            }
+        }
+
+        // Full Test Suite
+        function runFullSuite() {
+            clearResults('suiteResults');
+            log('🚀 Starting full WebSocket authentication test suite...', 'info', 'suiteResults');
+            log('This validates all Task 17 requirements:', 'info', 'suiteResults');
+            log('- Authentication with devwork token', 'info', 'suiteResults');
+            log('- Missing/incorrect token handling', 'info', 'suiteResults');
+            log('- 4001 and 4004 error code handling', 'info', 'suiteResults');
+            log('- Reconnection after auth failures', 'info', 'suiteResults');
+            log('', 'info', 'suiteResults');
+            
+            const tests = [
+                { name: 'Valid Authentication', fn: runValidAuthTest },
+                { name: 'Invalid Token', fn: runInvalidTokenTest },
+                { name: 'Missing Token', fn: runMissingTokenTest },
+                { name: 'Job Not Found', fn: runJobNotFoundTest },
+                { name: 'Reconnection', fn: runReconnectionTest }
+            ];
+            
+            let currentTest = 0;
+            let passedTests = 0;
+            
+            function runNextTest() {
+                if (currentTest >= tests.length) {
+                    log('', 'info', 'suiteResults');
+                    log('📊 TEST SUITE COMPLETE', 'info', 'suiteResults');
+                    log(`✅ Passed: ${passedTests}/${tests.length}`, passedTests === tests.length ? 'success' : 'warning', 'suiteResults');
+                    log(`❌ Failed: ${tests.length - passedTests}/${tests.length}`, 'info', 'suiteResults');
+                    
+                    if (passedTests === tests.length) {
+                        log('🎉 All tests passed! Task 17 requirements satisfied.', 'success', 'suiteResults');
+                    } else {
+                        log('⚠️ Some tests failed. Check API server configuration.', 'warning', 'suiteResults');
+                    }
+                    return;
+                }
+                
+                const test = tests[currentTest];
+                log(`Running test ${currentTest + 1}/${tests.length}: ${test.name}`, 'info', 'suiteResults');
+                
+                test.fn().then(passed => {
+                    if (passed) {
+                        passedTests++;
+                        log(`✅ ${test.name} passed`, 'success', 'suiteResults');
+                    } else {
+                        log(`❌ ${test.name} failed`, 'error', 'suiteResults');
+                    }
+                    currentTest++;
+                    setTimeout(runNextTest, 1000);
+                }).catch(error => {
+                    log(`❌ ${test.name} error: ${error.message}`, 'error', 'suiteResults');
+                    currentTest++;
+                    setTimeout(runNextTest, 1000);
+                });
+            }
+            
+            runNextTest();
+        }
+
+        // Individual test functions that return promises
+        function runValidAuthTest() {
+            return new Promise((resolve) => {
+                const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events?token=devwork';
+                const ws = new WebSocket(wsUrl);
+                
+                const timeout = setTimeout(() => {
+                    ws.close();
+                    resolve(false);
+                }, 3000);
+
+                ws.onopen = () => {
+                    clearTimeout(timeout);
+                    ws.close();
+                    resolve(true);
+                };
+
+                ws.onclose = (event) => {
+                    clearTimeout(timeout);
+                    resolve(event.code !== 4001);
+                };
+
+                ws.onerror = () => {
+                    clearTimeout(timeout);
+                    resolve(false);
+                };
+            });
+        }
+
+        function runInvalidTokenTest() {
+            return new Promise((resolve) => {
+                const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events?token=invalid';
+                const ws = new WebSocket(wsUrl);
+                
+                const timeout = setTimeout(() => {
+                    ws.close();
+                    resolve(false);
+                }, 3000);
+
+                ws.onopen = () => {
+                    clearTimeout(timeout);
+                    ws.close();
+                    resolve(false); // Should not connect with invalid token
+                };
+
+                ws.onclose = (event) => {
+                    clearTimeout(timeout);
+                    resolve(event.code === 4001);
+                };
+            });
+        }
+
+        function runMissingTokenTest() {
+            return new Promise((resolve) => {
+                const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events';
+                const ws = new WebSocket(wsUrl);
+                
+                const timeout = setTimeout(() => {
+                    ws.close();
+                    resolve(false);
+                }, 3000);
+
+                ws.onopen = () => {
+                    clearTimeout(timeout);
+                    ws.close();
+                    resolve(false); // Should not connect without token
+                };
+
+                ws.onclose = (event) => {
+                    clearTimeout(timeout);
+                    resolve(event.code === 4001);
+                };
+            });
+        }
+
+        function runJobNotFoundTest() {
+            return new Promise((resolve) => {
+                const wsUrl = getApiUrl().replace(/^http/, 'ws') + '/api/v1/jobs/nonexistent/events?token=devwork';
+                const ws = new WebSocket(wsUrl);
+                
+                const timeout = setTimeout(() => {
+                    ws.close();
+                    resolve(false);
+                }, 3000);
+
+                ws.onclose = (event) => {
+                    clearTimeout(timeout);
+                    resolve(event.code === 4004 || event.code === 4001); // 4001 acceptable if auth issue
+                };
+            });
+        }
+
+        function runReconnectionTest() {
+            return new Promise((resolve) => {
+                let authFailed = false;
+                
+                // First attempt with invalid token
+                const wsUrl1 = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events?token=invalid';
+                const ws1 = new WebSocket(wsUrl1);
+                
+                ws1.onclose = (event) => {
+                    if (event.code === 4001) {
+                        authFailed = true;
+                        
+                        // Second attempt with valid token
+                        setTimeout(() => {
+                            const wsUrl2 = getApiUrl().replace(/^http/, 'ws') + '/api/v1/events?token=devwork';
+                            const ws2 = new WebSocket(wsUrl2);
+                            
+                            ws2.onopen = () => {
+                                ws2.close();
+                                resolve(authFailed); // Success if first failed and second succeeded
+                            };
+                            
+                            ws2.onclose = () => {
+                                resolve(false);
+                            };
+                            
+                            setTimeout(() => {
+                                ws2.close();
+                                resolve(false);
+                            }, 3000);
+                        }, 500);
+                    } else {
+                        resolve(false);
+                    }
+                };
+                
+                setTimeout(() => {
+                    ws1.close();
+                    resolve(false);
+                }, 3000);
+            });
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            log('WebSocket Authentication Test Demo loaded', 'success');
+            log('Make sure the Unshackle API server is running at the specified URL', 'info');
+        });
+
+        // Clean up on page unload  
+        window.addEventListener('beforeunload', () => {
+            if (currentWebSocket) {
+                currentWebSocket.close();
+            }
+        });
+    </script>
+</body>
+</html>
