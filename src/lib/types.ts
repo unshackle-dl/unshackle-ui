@@ -176,11 +176,104 @@ export interface DownloadOptions {
   audio_tracks: string[];
 }
 
-// WebSocket Message Types
-export interface WebSocketMessage {
-  type: 'job_update' | 'job_progress' | 'service_status' | 'ping' | 'pong' | 'system_notification' | 'queue_update';
-  data?: any;
-  timestamp?: number;
+// WebSocket Message Types (API format)
+export interface WebSocketEvent {
+  event_type: string;           // "job_status", "job_progress", "test_event", etc.
+  job_id?: string;             // Present for job-specific events
+  data: Record<string, any>;   // Event payload
+  timestamp: number;           // Unix timestamp
+}
+
+// Legacy WebSocketMessage for backward compatibility
+export interface WebSocketMessage extends WebSocketEvent {
+  // Keep old format for compatibility with existing handlers
+  type?: 'job_update' | 'job_progress' | 'service_status' | 'ping' | 'pong' | 'system_notification' | 'queue_update' | 'connection_confirmed' | 'initial_status';
+}
+
+// Job Status Event Data (sent in WebSocketEvent.data)
+export interface JobStatusEventData {
+  job_id: string;
+  status: string;              // "pending", "running", "completed", "failed"
+  progress?: number;           // 0-100
+  current_action?: string;
+  files_completed?: number;
+  files_total?: number;
+  current_file?: string;
+  error?: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+// Job Progress Event Data (sent in WebSocketEvent.data)
+export interface JobProgressEventData {
+  job_id: string;
+  progress: number;            // 0-100
+  current_file?: string;
+  files_completed?: number;
+  files_total?: number;
+  downloaded_bytes?: number;
+  total_bytes?: number;
+  speed?: number;             // bytes per second
+}
+
+// Service Status Event Data (sent in WebSocketEvent.data)
+export interface ServiceStatusEventData {
+  service_id: string;
+  status: 'available' | 'unavailable' | 'error';
+  auth_status?: 'authenticated' | 'unauthenticated' | 'expired';
+  error?: string;
+}
+
+// System Notification Event Data (sent in WebSocketEvent.data)
+export interface SystemNotificationEventData {
+  level: 'info' | 'warning' | 'error';
+  message: string;
+  details?: string;
+  action?: string;
+}
+
+// Queue Update Event Data (sent in WebSocketEvent.data)
+export interface QueueUpdateEventData {
+  status: 'paused' | 'running' | 'stopped';
+  active_jobs: number;
+  queued_jobs: number;
+  total_jobs: number;
+}
+
+// Connection Confirmation Event Data (sent upon job WebSocket connection)
+export interface ConnectionConfirmedEventData {
+  job_id: string;
+  message?: string;
+  status?: string;               // Initial job status
+  progress?: number;             // Initial progress if available
+  current_file?: string;         // Current file being processed
+  files_total?: number;          // Total files to process
+  total_files?: number;          // Alternative naming for total files
+}
+
+// Type guards for WebSocket event data
+export function isJobStatusEvent(event: WebSocketEvent): event is WebSocketEvent & { data: JobStatusEventData } {
+  return event.event_type === 'job_status' && 'job_id' in event.data && 'status' in event.data;
+}
+
+export function isJobProgressEvent(event: WebSocketEvent): event is WebSocketEvent & { data: JobProgressEventData } {
+  return event.event_type === 'job_progress' && 'job_id' in event.data && 'progress' in event.data;
+}
+
+export function isServiceStatusEvent(event: WebSocketEvent): event is WebSocketEvent & { data: ServiceStatusEventData } {
+  return event.event_type === 'service_status' && 'service_id' in event.data && 'status' in event.data;
+}
+
+export function isSystemNotificationEvent(event: WebSocketEvent): event is WebSocketEvent & { data: SystemNotificationEventData } {
+  return event.event_type === 'system_notification' && 'level' in event.data && 'message' in event.data;
+}
+
+export function isQueueUpdateEvent(event: WebSocketEvent): event is WebSocketEvent & { data: QueueUpdateEventData } {
+  return event.event_type === 'queue_update' && 'status' in event.data && 'active_jobs' in event.data;
+}
+
+export function isConnectionConfirmedEvent(event: WebSocketEvent): event is WebSocketEvent & { data: ConnectionConfirmedEventData } {
+  return event.event_type === 'connection_confirmed' && 'job_id' in event.data;
 }
 
 // UI State Types
@@ -190,5 +283,5 @@ export type TabId = 'search' | 'queue' | 'history' | 'services';
 export interface ConnectionStatus {
   unshackle: 'connected' | 'disconnected' | 'error';
   tmdb: 'connected' | 'disconnected' | 'error';
-  websocket: 'connected' | 'disconnected' | 'error';
+  websocket: 'connected' | 'disconnected' | 'connecting' | 'reconnecting' | 'error' | 'auth_failed' | 'job_not_found';
 }

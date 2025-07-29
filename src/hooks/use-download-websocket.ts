@@ -30,64 +30,11 @@ export function useDownloadWebSocket() {
     }
   }, [setJobs, updateStats]);
 
-  // Handle WebSocket messages (this now happens in the context)
+  // Load initial data and setup polling fallback (WebSocket handling moved to WebSocketContext)
   useEffect(() => {
-    const client = apiClientManager.getUnshackleClient();
-    
-    // Only connect if we're going to handle the messages here
-    // In practice, the context now handles this, but keeping for backward compatibility
-    if (isConnected) {
-      client.connectWebSocket((message: WebSocketMessage) => {
-        try {
-          switch (message.type) {
-            case 'job_update':
-              if (message.data && message.data.id) {
-                handleJobUpdate(message.data as Partial<DownloadJob> & { id: string });
-                updateStats();
-              }
-              break;
-              
-            case 'job_progress':
-              if (message.data && message.data.id && message.data.progress !== undefined) {
-                handleJobProgress(
-                  message.data.id,
-                  message.data.progress,
-                  message.data.current_file
-                );
-                updateStats();
-              }
-              break;
-              
-            case 'service_status':
-              if (message.data && message.data.id) {
-                updateServiceStatus(message.data.id, message.data.status);
-              }
-              break;
-              
-            default:
-              console.log('Unknown WebSocket message type:', message.type);
-          }
-        } catch (error) {
-          console.error('Error handling WebSocket message in download hook:', error);
-        }
-      });
-    }
-
     // Load initial data on mount
     loadInitialData();
-
-    // Cleanup on unmount
-    return () => {
-      client.disconnectWebSocket();
-    };
-  }, [
-    handleJobUpdate, 
-    handleJobProgress, 
-    updateStats, 
-    updateServiceStatus, 
-    isConnected,
-    loadInitialData
-  ]);
+  }, [loadInitialData]);
 
   return {
     isConnected,

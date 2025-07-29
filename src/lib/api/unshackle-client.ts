@@ -217,18 +217,34 @@ export class UnshackleAPIClient {
     }
   }
 
-  // WebSocket connection for real-time updates
-  connectWebSocket(onMessage?: (message: WebSocketMessage) => void): void {
+  // WebSocket connection for job-specific events
+  connectToJobEvents(
+    jobId: string, 
+    onMessage?: (message: WebSocketMessage) => void,
+    onOpen?: () => void,
+    onClose?: () => void,
+    onAuthError?: () => void,
+    onJobNotFound?: () => void,
+    onError?: (error: Event) => void
+  ): void {
     if (this.wsConnection?.readyState === WebSocket.OPEN) {
-      return; // Already connected
+      console.log('WebSocket already open for job events, skipping connection');
+      onOpen?.(); // Call onOpen since we're already connected
+      return;
+    }
+    
+    if (this.wsConnection?.readyState === WebSocket.CONNECTING) {
+      console.log('WebSocket already connecting for job events, skipping');
+      return;
     }
 
-    const wsURL = this.baseURL.replace(/^http/, 'ws') + '/ws';
+    const wsURL = this.baseURL.replace(/^http/, 'ws') + `/api/v1/jobs/${jobId}/events?token=devwork`;
     this.wsConnection = new WebSocket(wsURL);
 
     this.wsConnection.onopen = () => {
-      console.log('WebSocket connected to Unshackle');
+      console.log(`WebSocket connected to Unshackle job ${jobId}`);
       this.reconnectAttempts = 0;
+      onOpen?.();
     };
 
     this.wsConnection.onmessage = (event) => {
@@ -240,22 +256,128 @@ export class UnshackleAPIClient {
       }
     };
 
-    this.wsConnection.onclose = () => {
-      console.log('WebSocket disconnected from Unshackle');
-      this.handleReconnect(onMessage);
+    this.wsConnection.onclose = (event) => {
+      console.log(`WebSocket disconnected from Unshackle job ${jobId} with code: ${event.code}`);
+      onClose?.();
+      
+      // Handle authentication errors specifically
+      if (event.code === 4001) {
+        console.error('Authentication failed for job WebSocket connection');
+        onAuthError?.();
+        // Don't auto-reconnect on auth failure
+        return;
+      }
+      
+      // Handle job not found errors
+      if (event.code === 4004) {
+        console.error('Job not found for WebSocket connection');
+        onJobNotFound?.();
+        // Don't auto-reconnect for non-existent jobs
+        return;
+      }
+      
+      this.handleReconnect(jobId, onMessage, onOpen, onClose, onAuthError, onJobNotFound, onError);
     };
 
     this.wsConnection.onerror = (error) => {
       console.error('WebSocket error:', error);
+      onError?.(error);
     };
   }
 
-  private handleReconnect(onMessage?: (message: WebSocketMessage) => void): void {
+  // WebSocket connection for global events
+  connectToGlobalEvents(
+    onMessage?: (message: WebSocketMessage) => void,
+    onOpen?: () => void,
+    onClose?: () => void,
+    onAuthError?: () => void,
+    onError?: (error: Event) => void
+  ): void {
+    if (this.wsConnection?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already open for global events, skipping connection');
+      onOpen?.(); // Call onOpen since we're already connected
+      return;
+    }
+    
+    if (this.wsConnection?.readyState === WebSocket.CONNECTING) {
+      console.log('WebSocket already connecting for global events, skipping');
+      return;
+    }
+
+    const wsURL = this.baseURL.replace(/^http/, 'ws') + `/api/v1/events?token=devwork`;
+    this.wsConnection = new WebSocket(wsURL);
+
+    this.wsConnection.onopen = () => {
+      console.log('WebSocket connected to Unshackle global events');
+      this.reconnectAttempts = 0;
+      onOpen?.();
+    };
+
+    this.wsConnection.onmessage = (event) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(event.data);
+        onMessage?.(message);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+
+    this.wsConnection.onclose = (event) => {
+      console.log(`WebSocket disconnected from Unshackle global events with code: ${event.code}`);
+      onClose?.();
+      
+      // Handle authentication errors specifically
+      if (event.code === 4001) {
+        console.error('Authentication failed for global WebSocket connection');
+        onAuthError?.();
+        // Don't auto-reconnect on auth failure
+        return;
+      }
+      
+      this.handleGlobalReconnect(onMessage, onOpen, onClose, onAuthError, onError);
+    };
+
+    this.wsConnection.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      onError?.(error);
+    };
+  }
+
+  // Backward compatibility: WebSocket connection for general use (defaults to global events)
+  connectWebSocket(onMessage?: (message: WebSocketMessage) => void): void {
+    this.connectToGlobalEvents(onMessage);
+  }
+
+  private handleReconnect(
+    jobId: string, 
+    onMessage?: (message: WebSocketMessage) => void,
+    onOpen?: () => void,
+    onClose?: () => void,
+    onAuthError?: () => void,
+    onJobNotFound?: () => void,
+    onError?: (error: Event) => void
+  ): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       setTimeout(() => {
         this.reconnectAttempts++;
-        console.log(`Reconnecting WebSocket (attempt ${this.reconnectAttempts})`);
-        this.connectWebSocket(onMessage);
+        console.log(`Reconnecting job WebSocket (attempt ${this.reconnectAttempts})`);
+        this.connectToJobEvents(jobId, onMessage, onOpen, onClose, onAuthError, onJobNotFound, onError);
+      }, Math.pow(2, this.reconnectAttempts) * 1000); // Exponential backoff
+    }
+  }
+
+  private handleGlobalReconnect(
+    onMessage?: (message: WebSocketMessage) => void,
+    onOpen?: () => void,
+    onClose?: () => void,
+    onAuthError?: () => void,
+    onError?: (error: Event) => void
+  ): void {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      setTimeout(() => {
+        this.reconnectAttempts++;
+        console.log(`Reconnecting global WebSocket (attempt ${this.reconnectAttempts})`);
+        this.connectToGlobalEvents(onMessage, onOpen, onClose, onAuthError, onError);
       }, Math.pow(2, this.reconnectAttempts) * 1000); // Exponential backoff
     }
   }
@@ -264,7 +386,7 @@ export class UnshackleAPIClient {
     if (this.wsConnection) {
       this.wsConnection.close();
       this.wsConnection = null;
-    }
+      }
   }
 
   // Retry logic for failed requests

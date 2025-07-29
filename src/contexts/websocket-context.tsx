@@ -1,176 +1,544 @@
 import { createContext, useContext, useCallback, useEffect, useState } from 'react';
-import { useWebSocket } from '@/hooks/use-websocket';
 import { useDownloadsStore } from '@/stores/downloads-store';
 import { useServicesStore } from '@/stores/services-store';
-import { type WebSocketMessage } from '@/lib/types';
+import { unshackleClient } from '@/lib/api';
+import { type WebSocketMessage, type ConnectionConfirmedEventData, isConnectionConfirmedEvent } from '@/lib/types';
 
-export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
+export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error' | 'auth_failed' | 'job_not_found';
+
+interface ConnectionMetadata {
+  lastConnected: Date | null;
+  lastDisconnected: Date | null;
+  lastError: string | null;
+  lastErrorTime: Date | null;
+  connectionDuration: number; // in milliseconds
+  totalReconnectAttempts: number;
+  currentJobId: string | null;
+  connectionType: 'global' | 'job' | null;
+  lastPong: Date | null;
+  isHeartbeatActive: boolean;
+  connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown';
+}
 
 interface WebSocketContextType {
   isConnected: boolean;
   connectionState: ConnectionState;
-  lastConnected: Date | null;
+  connectionMetadata: ConnectionMetadata;
   reconnectAttempts: number;
+  lastError: string | null;
   sendMessage: (message: any) => void;
   connect: () => void;
   disconnect: () => void;
+  connectToJob: (jobId: string) => void;
+  connectToGlobal: () => void;
+  getConnectionStats: () => ConnectionMetadata;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
 interface WebSocketProviderProps {
   children: React.ReactNode;
-  url?: string;
 }
 
 export function WebSocketProvider({ 
-  children, 
-  url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
+  children
 }: WebSocketProviderProps) {
   const { handleJobUpdate, handleJobProgress } = useDownloadsStore();
   const { updateServiceStatus } = useServicesStore();
   
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
-  const [lastConnected, setLastConnected] = useState<Date | null>(null);
   const [currentReconnectAttempts, setCurrentReconnectAttempts] = useState(0);
   const [autoConnect, setAutoConnect] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
+  
+  // Enhanced metadata tracking
+  const [connectionMetadata, setConnectionMetadata] = useState<ConnectionMetadata>({
+    lastConnected: null,
+    lastDisconnected: null,
+    lastError: null,
+    lastErrorTime: null,
+    connectionDuration: 0,
+    totalReconnectAttempts: 0,
+    currentJobId: null,
+    connectionType: null,
+    lastPong: null,
+    isHeartbeatActive: false,
+    connectionQuality: 'unknown',
+  });
+
+  // Utility functions for metadata management
+  const updateConnectionMetadata = useCallback((updates: Partial<ConnectionMetadata>) => {
+    setConnectionMetadata(prev => ({ ...prev, ...updates }));
+  }, []);
+
+  const calculateConnectionQuality = useCallback((lastPong: Date | null, reconnectAttempts: number): ConnectionMetadata['connectionQuality'] => {
+    if (!lastPong) return 'unknown';
+    
+    const timeSinceLastPong = Date.now() - lastPong.getTime();
+    const reconnectPenalty = Math.min(reconnectAttempts * 0.2, 1); // Max 1 point penalty
+    
+    if (timeSinceLastPong < 30000 && reconnectAttempts === 0) {
+      return 'excellent';
+    } else if (timeSinceLastPong < 60000 && reconnectAttempts < 3) {
+      return 'good';
+    } else {
+      return 'poor';
+    }
+  }, []);
+
+  const updateConnectionDuration = useCallback(() => {
+    setConnectionMetadata(prev => {
+      if (prev.lastConnected && isConnected) {
+        const duration = Date.now() - prev.lastConnected.getTime();
+        return { ...prev, connectionDuration: duration };
+      }
+      return prev;
+    });
+  }, [isConnected]);
+
+  // Update connection duration every 30 seconds when connected
+  useEffect(() => {
+    if (!isConnected) return;
+    
+    const interval = setInterval(updateConnectionDuration, 30000);
+    return () => clearInterval(interval);
+  }, [isConnected, updateConnectionDuration]);
 
   const handleMessage = useCallback((message: WebSocketMessage) => {
     try {
-      switch (message.type) {
-        case 'job_update':
-          const jobUpdate = message.data;
-          if (jobUpdate && jobUpdate.id) {
-            handleJobUpdate(jobUpdate);
+      // Parse API message format: {event_type, job_id, data, timestamp}
+      const eventType = message.event_type || message.type; // Prioritize event_type from API
+      const jobId = message.job_id; // Extract job_id directly from message
+      const eventData = message.data;
+      const timestamp = message.timestamp; // Handle timestamp for event ordering
+      
+      // Log received event for debugging
+      console.debug(`WebSocket event: ${eventType}`, { jobId, timestamp, data: eventData });
+      
+      switch (eventType) {
+        // API job status events (maps to handleJobUpdate store action)
+        case 'job_status':
+        case 'job_update': // Legacy compatibility
+        case 'initial_status': // Initial job status sent upon connection
+          if (eventData && (eventData.job_id || jobId)) {
+            const jobUpdateId = jobId || eventData.job_id || eventData.id;
+            
+            // Transform API JobStatusEventData to DownloadJob format for store compatibility
+            const normalizedJobUpdate = {
+              ...eventData,
+              id: jobUpdateId,
+              job_id: jobUpdateId,
+              // Map API fields to DownloadJob interface
+              current_file: eventData.current_file,
+              total_files: eventData.files_total,
+              start_time: eventData.started_at,
+              end_time: eventData.completed_at,
+              timestamp: timestamp
+            };
+            
+            // Map to downloads store handleJobUpdate action - preserves existing store interface
+            handleJobUpdate(normalizedJobUpdate);
+            console.log('Processed job status update', { 
+              jobId: jobUpdateId, 
+              status: eventData.status,
+              progress: eventData.progress,
+              isInitialStatus: timestamp && (Date.now() - timestamp * 1000) < 5000 // Within 5 seconds
+            });
+          } else {
+            console.warn('job_status event missing job_id', { eventType, jobId, eventData });
           }
           break;
           
+        // API connection confirmation events (sent immediately upon job WebSocket connection)
+        case 'connection_confirmed':
+          if (isConnectionConfirmedEvent(message)) {
+            const confirmedJobId = jobId || message.data.job_id;
+            console.log(`WebSocket connection confirmed for job ${confirmedJobId}`, { 
+              timestamp,
+              initialStatus: message.data.status,
+              message: message.data.message
+            });
+            
+            // If the connection confirmation includes job status, process it immediately
+            if (message.data.status) {
+              const initialJobStatus = {
+                id: confirmedJobId,
+                job_id: confirmedJobId,
+                status: message.data.status,
+                progress: message.data.progress,
+                current_file: message.data.current_file,
+                total_files: message.data.files_total || message.data.total_files,
+                timestamp: timestamp
+              };
+              handleJobUpdate(initialJobStatus);
+              console.log('Processed initial job status from connection confirmation', {
+                jobId: confirmedJobId,
+                status: message.data.status
+              });
+            }
+          } else {
+            console.warn('connection_confirmed event missing job_id', { eventType, jobId, eventData });
+          }
+          break;
+          
+        // API job progress events (maps to handleJobProgress store action)  
         case 'job_progress':
-          const progressUpdate = message.data;
-          if (progressUpdate && progressUpdate.id && progressUpdate.progress !== undefined) {
+          if (eventData && eventData.progress !== undefined && (eventData.job_id || jobId)) {
+            const progressJobId = jobId || eventData.job_id || eventData.id;
+            
+            // Map to downloads store handleJobProgress action - preserves existing store interface
             handleJobProgress(
-              progressUpdate.id,
-              progressUpdate.progress,
-              progressUpdate.current_file
+              progressJobId,
+              eventData.progress,
+              eventData.current_file
             );
+            
+            // If the API provides additional progress data, update the job with it
+            if (eventData.files_completed || eventData.files_total || eventData.downloaded_bytes || eventData.total_bytes) {
+              const progressJobUpdate = {
+                id: progressJobId,
+                progress: eventData.progress,
+                current_file: eventData.current_file,
+                total_files: eventData.files_total,
+                downloaded_bytes: eventData.downloaded_bytes,
+                total_bytes: eventData.total_bytes
+              };
+              handleJobUpdate(progressJobUpdate);
+            }
+            
+            console.debug('Mapped job_progress event to handleJobProgress', { 
+              jobId: progressJobId, 
+              progress: eventData.progress,
+              currentFile: eventData.current_file
+            });
+          } else {
+            console.warn('job_progress event missing required fields', { eventType, jobId, eventData });
           }
           break;
           
+        // API service status events (maps to updateServiceStatus store action)
         case 'service_status':
-          const serviceUpdate = message.data;
-          if (serviceUpdate && serviceUpdate.id) {
-            updateServiceStatus(serviceUpdate.id, serviceUpdate.status);
+          if (eventData && (eventData.service_id || eventData.id)) {
+            const serviceId = eventData.service_id || eventData.id;
+            // Map to services store updateServiceStatus action
+            updateServiceStatus(serviceId, eventData.status);
+            console.debug('Mapped service_status event to updateServiceStatus', { 
+              serviceId, 
+              status: eventData.status 
+            });
+          } else {
+            console.warn('service_status event missing service_id', { eventType, eventData });
           }
           break;
 
         case 'ping':
-          // Respond to server ping with pong - need to handle this via ref
           console.debug('Received ping from server');
           break;
 
         case 'pong':
-          // Server responded to our ping
           console.debug('Received pong from server');
+          const now = new Date();
+          updateConnectionMetadata({ 
+            lastPong: now,
+            connectionQuality: calculateConnectionQuality(now, currentReconnectAttempts)
+          });
           break;
 
+        // API system notification events (could map to notification store if implemented)
         case 'system_notification':
-          // Handle system-wide notifications
-          if (message.data) {
-            console.log('System notification:', message.data);
-            // Could trigger toast notifications or other UI updates
+          if (eventData) {
+            console.log('System notification:', eventData);
+            // TODO: Map to notification store when implemented
+            // notificationStore.addNotification(eventData);
           }
           break;
 
+        // API queue update events (maps to downloads store queue state)
         case 'queue_update':
-          // Handle queue-level updates (like queue paused/resumed)
-          if (message.data) {
-            console.log('Queue update:', message.data);
-            // Could update queue state or trigger UI updates
+          if (eventData) {
+            console.log('Queue update:', eventData);
+            // Map queue status changes to downloads store if needed
+            if (eventData.status === 'paused') {
+              // Could trigger downloads store pauseQueue action
+              console.debug('Queue paused via WebSocket event');
+            } else if (eventData.status === 'running') {
+              // Could trigger downloads store resumeQueue action  
+              console.debug('Queue resumed via WebSocket event');
+            }
           }
+          break;
+
+        // API test events (for development/debugging)
+        case 'test_event':
+          console.debug('Received test event from API:', eventData);
           break;
           
         default:
-          console.log('Unknown WebSocket message type:', message.type);
+          console.log('Unknown WebSocket message type:', eventType, { message });
       }
     } catch (error) {
-      console.error('Error handling WebSocket message:', error);
+      console.error('Error handling WebSocket message:', error, { message });
     }
   }, [handleJobUpdate, handleJobProgress, updateServiceStatus]);
-  
-  const handleOpen = useCallback(() => {
-    console.log('WebSocket connection established');
-    setConnectionState('connected');
-    setLastConnected(new Date());
-    setCurrentReconnectAttempts(0);
-  }, []);
-  
-  const handleClose = useCallback(() => {
-    console.log('WebSocket connection closed');
-    setConnectionState('disconnected');
-  }, []);
-  
-  const handleError = useCallback((error: Event) => {
-    console.error('WebSocket connection error:', error);
-    setConnectionState('error');
-  }, []);
-  
-  const handleReconnecting = useCallback((attempt: number) => {
-    console.log(`WebSocket reconnecting... attempt ${attempt}`);
-    setConnectionState('reconnecting');
-    setCurrentReconnectAttempts(attempt);
-  }, []);
 
-  const { sendMessage, isConnected, connect, disconnect } = useWebSocket({
-    url,
-    onMessage: handleMessage,
-    onOpen: handleOpen,
-    onClose: handleClose,
-    onError: handleError,
-    onReconnecting: handleReconnecting,
-    reconnectAttempts: 10,
-    reconnectInterval: 2000,
-    autoConnect,
-  });
+  // Enhanced error handling callbacks with metadata tracking
+  const handleAuthError = useCallback(() => {
+    console.error('WebSocket authentication failed');
+    const now = new Date();
+    setConnectionState('auth_failed');
+    setIsConnected(false);
+    setLastError('Authentication failed. Please check your API configuration.');
+    updateConnectionMetadata({
+      lastError: 'Authentication failed',
+      lastErrorTime: now,
+      lastDisconnected: now,
+      connectionQuality: 'poor'
+    });
+  }, [updateConnectionMetadata]);
+
+  const handleJobNotFoundError = useCallback(() => {
+    console.error('WebSocket job not found');
+    const now = new Date();
+    setConnectionState('job_not_found');
+    setIsConnected(false);
+    setLastError('Job not found. The requested job may have been completed or removed.');
+    updateConnectionMetadata({
+      lastError: 'Job not found',
+      lastErrorTime: now,
+      lastDisconnected: now,
+      connectionQuality: 'poor'
+    });
+  }, [updateConnectionMetadata]);
+
+  const handleConnectionError = useCallback((error: Event) => {
+    console.error('WebSocket connection error:', error);
+    const now = new Date();
+    setConnectionState('error');
+    setIsConnected(false);
+    setLastError('Connection error occurred');
+    updateConnectionMetadata({
+      lastError: 'Connection error',
+      lastErrorTime: now,
+      lastDisconnected: now,
+      connectionQuality: 'poor'
+    });
+  }, [updateConnectionMetadata]);
+
+  // Connection management functions
+  const connectToGlobal = useCallback(() => {
+    // Prevent multiple simultaneous connections
+    if (connectionState === 'connecting' || connectionState === 'connected') {
+      console.log('Already connecting or connected, skipping connectToGlobal');
+      return;
+    }
+
+    console.log('Connecting to global WebSocket events...');
+    setConnectionState('connecting');
+    setLastError(null);
+    setCurrentReconnectAttempts(0);
+    updateConnectionMetadata({
+      connectionType: 'global',
+      currentJobId: null,
+      isHeartbeatActive: true
+    });
+    
+    const handleOpen = () => {
+      console.log('Global WebSocket connection opened successfully');
+      const now = new Date();
+      setIsConnected(true);
+      setConnectionState('connected');
+      setCurrentReconnectAttempts(0);
+      updateConnectionMetadata({
+        lastConnected: now,
+        connectionDuration: 0,
+        connectionQuality: 'good',
+        lastPong: now // Initialize as just connected
+      });
+    };
+
+    const handleClose = () => {
+      console.log('Global WebSocket connection closed');
+      const now = new Date();
+      setIsConnected(false);
+      if (connectionState !== 'auth_failed' && connectionState !== 'job_not_found') {
+        setConnectionState('disconnected');
+      }
+      updateConnectionMetadata({
+        lastDisconnected: now,
+        isHeartbeatActive: false
+      });
+    };
+
+    try {
+      unshackleClient.connectToGlobalEvents(
+        handleMessage,
+        handleOpen,
+        handleClose,
+        handleAuthError,
+        handleConnectionError
+      );
+    } catch (error) {
+      console.error('Failed to connect to global events:', error);
+      setConnectionState('error');
+      setIsConnected(false);
+      setLastError('Failed to establish WebSocket connection');
+    }
+  }, [handleMessage, handleAuthError, handleConnectionError]);
+
+  const connectToJob = useCallback((jobId: string) => {
+    // Prevent multiple simultaneous connections
+    if (connectionState === 'connecting' || connectionState === 'connected') {
+      console.log(`Already connecting or connected, skipping connectToJob for ${jobId}`);
+      return;
+    }
+
+    console.log(`Connecting to job ${jobId} WebSocket events...`);
+    setConnectionState('connecting');
+    setLastError(null);
+    setCurrentReconnectAttempts(0);
+    updateConnectionMetadata({
+      connectionType: 'job',
+      currentJobId: jobId,
+      isHeartbeatActive: true
+    });
+    
+    // Enhanced message handler for job-specific connections
+    const handleJobMessage = useCallback((message: WebSocketMessage) => {
+      // Check if this could be an initial job status message
+      const isPotentialInitialStatus = (
+        message.event_type === 'job_status' || 
+        message.event_type === 'connection_confirmed' ||
+        message.event_type === 'initial_status' ||
+        // Any message with job status data within first few seconds of connection
+        (message.data && message.data.status && message.timestamp && 
+         (Date.now() - message.timestamp * 1000) < 10000)
+      );
+      
+      if (isPotentialInitialStatus) {
+        console.log(`Processing potential initial job status for ${jobId}:`, {
+          eventType: message.event_type,
+          hasStatus: !!message.data?.status,
+          timestamp: message.timestamp
+        });
+      }
+      
+      // Handle all messages through the standard handler
+      handleMessage(message);
+    }, [handleMessage, jobId]);
+    
+    const handleOpen = () => {
+      console.log(`Job ${jobId} WebSocket connection opened successfully - awaiting initial job status`);
+      const now = new Date();
+      setIsConnected(true);
+      setConnectionState('connected');
+      setCurrentReconnectAttempts(0);
+      updateConnectionMetadata({
+        lastConnected: now,
+        connectionDuration: 0,
+        connectionQuality: 'good',
+        lastPong: now // Initialize as just connected
+      });
+    };
+
+    const handleClose = () => {
+      console.log(`Job ${jobId} WebSocket connection closed`);
+      const now = new Date();
+      setIsConnected(false);
+      if (connectionState !== 'auth_failed' && connectionState !== 'job_not_found') {
+        setConnectionState('disconnected');
+      }
+      updateConnectionMetadata({
+        lastDisconnected: now,
+        isHeartbeatActive: false
+      });
+    };
+
+    try {
+      unshackleClient.connectToJobEvents(
+        jobId,
+        handleJobMessage,
+        handleOpen,
+        handleClose,
+        handleAuthError,
+        handleJobNotFoundError,
+        handleConnectionError
+      );
+    } catch (error) {
+      console.error(`Failed to connect to job ${jobId} events:`, error);
+      setConnectionState('error');
+      setIsConnected(false);
+      setLastError(`Failed to connect to job ${jobId}`);
+    }
+  }, [handleMessage, handleAuthError, handleConnectionError, connectionState]);
+
+  const connect = useCallback(() => {
+    if (connectionState === 'connecting' || connectionState === 'connected') {
+      console.log('Already connecting or connected, skipping connect');
+      return;
+    }
+    connectToGlobal();
+  }, [connectToGlobal, connectionState]);
+
+  const disconnect = useCallback(() => {
+    try {
+      unshackleClient.disconnectWebSocket();
+      const now = new Date();
+      setIsConnected(false);
+      setConnectionState('disconnected');
+      updateConnectionMetadata({
+        lastDisconnected: now,
+        isHeartbeatActive: false
+      });
+    } catch (error) {
+      console.error('Failed to disconnect WebSocket:', error);
+    }
+  }, [updateConnectionMetadata]);
+
+  const getConnectionStats = useCallback((): ConnectionMetadata => {
+    return { ...connectionMetadata };
+  }, [connectionMetadata]);
+
+  const sendMessage = useCallback((_message: any) => {
+    // Note: The UnshackleClient doesn't expose a sendMessage method
+    // This is kept for compatibility but may not work with the current API client
+    console.warn('sendMessage not implemented with UnshackleClient');
+  }, []);
 
   // Auto-connect when component mounts
   useEffect(() => {
-    if (autoConnect) {
-      setConnectionState('connecting');
+    if (autoConnect && connectionState === 'disconnected') {
+      console.log('Auto-connecting WebSocket on mount...');
       connect();
     }
-  }, [autoConnect, connect]);
+  }, [autoConnect, connectionState, connect]);
 
-  // Health check - ping every 30 seconds when connected
+  // Cleanup WebSocket connection when component unmounts
   useEffect(() => {
-    if (!isConnected) return;
-
-    const healthCheck = setInterval(() => {
-      try {
-        sendMessage({ type: 'ping', timestamp: Date.now() });
-      } catch (error) {
-        console.error('Health check failed:', error);
-      }
-    }, 30000);
-
-    return () => clearInterval(healthCheck);
-  }, [isConnected, sendMessage]);
+    return () => {
+      console.log('WebSocketProvider unmounting, disconnecting WebSocket...');
+      unshackleClient.disconnectWebSocket();
+    };
+  }, []);
   
   const contextValue = {
     isConnected,
     connectionState,
-    lastConnected,
+    connectionMetadata,
     reconnectAttempts: currentReconnectAttempts,
+    lastError,
     sendMessage,
     connect: () => {
       setAutoConnect(true);
-      setConnectionState('connecting');
       connect();
     },
     disconnect: () => {
       setAutoConnect(false);
-      setConnectionState('disconnected');
       disconnect();
     },
+    connectToJob,
+    connectToGlobal,
+    getConnectionStats,
   };
   
   return (
