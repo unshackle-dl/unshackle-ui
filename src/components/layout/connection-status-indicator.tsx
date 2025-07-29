@@ -1,22 +1,31 @@
-import { Wifi, WifiOff, Loader2, AlertTriangle } from 'lucide-react';
+import { Wifi, WifiOff, Loader2, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useWebSocketContext } from '@/contexts/websocket-context';
+import { useDownloadWebSocket } from '@/hooks/use-download-websocket';
 
 interface ConnectionStatusIndicatorProps {
   className?: string;
   showDetails?: boolean;
+  showPollingMode?: boolean; // New: show polling fallback status
 }
 
-export function ConnectionStatusIndicator({ className, showDetails = false }: ConnectionStatusIndicatorProps) {
+export function ConnectionStatusIndicator({ className, showDetails = false, showPollingMode = false }: ConnectionStatusIndicatorProps) {
   const { isConnected, connectionState, reconnectAttempts, connectionMetadata, lastError } = useWebSocketContext();
   
+  // Get polling status information when polling mode display is enabled
+  const pollingInfo = showPollingMode ? useDownloadWebSocket() : null;
+  
   const getStatusConfig = () => {
+    // Check if polling is active to modify the display
+    const isPollingActive = pollingInfo?.isPolling;
+    const pollingReason = pollingInfo?.pollingReason;
+    
     switch (connectionState) {
       case 'connected':
         return {
           icon: Wifi,
-          label: 'Connected',
+          label: 'WebSocket Connected',
           variant: 'default' as const,
           className: 'bg-green-500 text-white',
         };
@@ -38,32 +47,36 @@ export function ConnectionStatusIndicator({ className, showDetails = false }: Co
         };
       case 'auth_failed':
         return {
-          icon: AlertTriangle,
-          label: 'Auth Failed',
-          variant: 'destructive' as const,
-          className: 'bg-orange-500 text-white',
+          icon: isPollingActive ? RefreshCw : AlertTriangle,
+          label: isPollingActive ? 'Polling Mode' : 'Auth Failed',
+          variant: isPollingActive ? 'secondary' : 'destructive' as const,
+          className: isPollingActive ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white',
+          animate: isPollingActive,
         };
       case 'job_not_found':
         return {
-          icon: AlertTriangle,
-          label: 'Job Not Found',
-          variant: 'destructive' as const,
-          className: 'bg-purple-500 text-white',
+          icon: isPollingActive ? RefreshCw : AlertTriangle,
+          label: isPollingActive ? 'Polling Mode' : 'Job Not Found',
+          variant: isPollingActive ? 'secondary' : 'destructive' as const,
+          className: isPollingActive ? 'bg-blue-600 text-white' : 'bg-purple-500 text-white',
+          animate: isPollingActive,
         };
       case 'error':
         return {
-          icon: AlertTriangle,
-          label: 'Connection Error',
-          variant: 'destructive' as const,
-          className: 'bg-red-500 text-white',
+          icon: isPollingActive ? RefreshCw : AlertTriangle,
+          label: isPollingActive ? 'Polling Mode' : 'Connection Error',
+          variant: isPollingActive ? 'secondary' : 'destructive' as const,
+          className: isPollingActive ? 'bg-blue-600 text-white' : 'bg-red-500 text-white',
+          animate: isPollingActive,
         };
       case 'disconnected':
       default:
         return {
-          icon: WifiOff,
-          label: 'Disconnected',
-          variant: 'destructive' as const,
-          className: 'bg-gray-500 text-white',
+          icon: isPollingActive ? RefreshCw : WifiOff,
+          label: isPollingActive ? 'Polling Mode' : 'Disconnected',
+          variant: isPollingActive ? 'secondary' : 'destructive' as const,
+          className: isPollingActive ? 'bg-blue-600 text-white' : 'bg-gray-500 text-white',
+          animate: isPollingActive,
         };
     }
   };
@@ -129,6 +142,38 @@ export function ConnectionStatusIndicator({ className, showDetails = false }: Co
       </Badge>
       {showDetails && (
         <div className="flex flex-col items-end space-y-1 mt-1">
+          {/* Polling status information (when polling mode is enabled) */}
+          {showPollingMode && pollingInfo && (
+            <>
+              {pollingInfo.isPolling && (
+                <div className="flex items-center space-x-1">
+                  <Clock className="h-3 w-3 text-blue-600" />
+                  <span className="text-xs text-blue-600">
+                    Polling every {Math.round(pollingInfo.pollingInterval / 1000)}s
+                  </span>
+                </div>
+              )}
+              
+              {pollingInfo.pollingReason !== 'not_needed' && (
+                <span className="text-xs text-muted-foreground">
+                  Reason: {pollingInfo.pollingReason.replace('_', ' ')}
+                </span>
+              )}
+              
+              {pollingInfo.isPollingForAuthFailure && (
+                <span className="text-xs text-orange-600">
+                  WebSocket auth failed - using REST API
+                </span>
+              )}
+              
+              {pollingInfo.lastPollingSuccess && (
+                <span className="text-xs text-muted-foreground">
+                  Last update: {Math.floor((Date.now() - pollingInfo.lastPollingSuccess) / 1000)}s ago
+                </span>
+              )}
+            </>
+          )}
+          
           {/* Connection duration when connected */}
           {isConnected && connectionMetadata.lastConnected && (
             <span className="text-xs text-muted-foreground">
@@ -174,20 +219,20 @@ export function ConnectionStatusIndicator({ className, showDetails = false }: Co
             </span>
           )}
           
-          {/* Error-specific messages */}
+          {/* Error-specific messages with polling fallback info */}
           {lastError && connectionState === 'auth_failed' && (
             <span className="text-xs text-orange-600 max-w-48 text-right">
-              Check API configuration
+              {pollingInfo?.isPolling ? 'Using REST API fallback' : 'Check API configuration'}
             </span>
           )}
           {lastError && connectionState === 'job_not_found' && (
             <span className="text-xs text-purple-600 max-w-48 text-right">
-              Job may be completed or removed
+              {pollingInfo?.isPolling ? 'Using REST API fallback' : 'Job may be completed or removed'}
             </span>
           )}
           {lastError && connectionState === 'error' && (
             <span className="text-xs text-red-600 max-w-48 text-right">
-              {lastError}
+              {pollingInfo?.isPolling ? 'Using REST API fallback' : lastError}
             </span>
           )}
           

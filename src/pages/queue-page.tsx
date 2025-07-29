@@ -3,13 +3,20 @@ import { useJobs } from '@/lib/api/queries';
 import { useDownloadWebSocket } from '@/hooks/use-download-websocket';
 import { ConnectionStatusIndicator } from '@/components/layout/connection-status-indicator';
 import { Badge } from '@/components/ui/badge';
-import { Clock } from 'lucide-react';
+import { Clock, Wifi } from 'lucide-react';
 
 export function QueuePage() {
   const { data: jobs = [], isLoading } = useJobs();
   
   // Connect to WebSocket for real-time download updates and get status
-  const { isPolling, pollingInterval } = useDownloadWebSocket();
+  const { 
+    isConnected,
+    isPolling, 
+    pollingInterval, 
+    pollingReason,
+    isPollingForAuthFailure,
+    connectionState 
+  } = useDownloadWebSocket();
   
   // Filter jobs by status
   const activeJobs = jobs.filter(job => job.status === 'downloading');
@@ -32,15 +39,22 @@ export function QueuePage() {
         </div>
         
         <div className="flex items-center space-x-2">
-          {/* Real-time update status */}
+          {/* Enhanced real-time update status with polling mode display */}
           <div className="flex items-center space-x-2">
-            <ConnectionStatusIndicator showDetails />
-            {isPolling && (
-              <Badge variant="secondary" className="flex items-center space-x-1">
+            <ConnectionStatusIndicator showDetails showPollingMode />
+            
+            {/* Additional mode indicators */}
+            {isConnected && !isPolling && (
+              <Badge variant="default" className="flex items-center space-x-1 bg-green-600 text-white">
+                <Wifi className="h-3 w-3" />
+                <span className="text-xs">Real-time</span>
+              </Badge>
+            )}
+            
+            {isPollingForAuthFailure && (
+              <Badge variant="outline" className="flex items-center space-x-1 border-orange-500 text-orange-700">
                 <Clock className="h-3 w-3" />
-                <span className="text-xs">
-                  Polling ({Math.round(pollingInterval / 1000)}s)
-                </span>
+                <span className="text-xs">Fallback Mode</span>
               </Badge>
             )}
           </div>

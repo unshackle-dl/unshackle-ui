@@ -1,9 +1,10 @@
 import { useWebSocketContext } from '@/contexts/websocket-context';
+import { useDownloadWebSocket } from '@/hooks/use-download-websocket';
 import { ConnectionStatusIndicator } from '@/components/layout/connection-status-indicator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Power, PowerOff, Activity } from 'lucide-react';
+import { RefreshCw, Power, PowerOff, Activity, Clock, Wifi } from 'lucide-react';
 
 interface WebSocketStatusProps {
   showControls?: boolean;
@@ -19,6 +20,15 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
     connect, 
     disconnect 
   } = useWebSocketContext();
+  
+  // Get polling status for enhanced feedback
+  const { 
+    isPolling, 
+    pollingInterval, 
+    pollingReason,
+    isPollingForAuthFailure,
+    isPollingForDisconnection 
+  } = useDownloadWebSocket();
 
   const formatLastConnected = () => {
     if (!connectionMetadata.lastConnected) return 'Never';
@@ -55,10 +65,16 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
   if (compact) {
     return (
       <div className="flex items-center space-x-2">
-        <ConnectionStatusIndicator />
+        <ConnectionStatusIndicator showPollingMode />
         {reconnectAttempts > 0 && (
           <Badge variant="secondary" className="text-xs">
             Retry {reconnectAttempts}
+          </Badge>
+        )}
+        {isPolling && (
+          <Badge variant="outline" className="text-xs flex items-center space-x-1">
+            <Clock className="h-3 w-3" />
+            <span>Polling</span>
           </Badge>
         )}
       </div>
@@ -70,12 +86,16 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-sm font-medium">WebSocket Connection</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {isConnected ? 'WebSocket Connection' : isPolling ? 'Polling Mode' : 'Disconnected'}
+            </CardTitle>
             <CardDescription className="text-xs">
-              Real-time updates status
+              {isConnected ? 'Real-time updates active' : 
+               isPolling ? 'REST API fallback active' : 
+               'No updates available'}
             </CardDescription>
           </div>
-          <ConnectionStatusIndicator />
+          <ConnectionStatusIndicator showPollingMode />
         </div>
       </CardHeader>
       <CardContent className="pt-0">
@@ -88,10 +108,58 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
               </p>
             </div>
             <div>
+              <span className="text-muted-foreground">Update Mode:</span>
+              <p className="font-medium flex items-center space-x-1">
+                {isConnected ? (
+                  <>
+                    <Wifi className="h-3 w-3 text-green-600" />
+                    <span className="text-green-600">WebSocket</span>
+                  </>
+                ) : isPolling ? (
+                  <>
+                    <Clock className="h-3 w-3 text-blue-600" />
+                    <span className="text-blue-600">Polling</span>
+                  </>
+                ) : (
+                  <span className="text-gray-600">None</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Enhanced connection information */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
               <span className="text-muted-foreground">Last Connected:</span>
               <p className="font-medium">{formatLastConnected()}</p>
             </div>
+            {isPolling && (
+              <div>
+                <span className="text-muted-foreground">Poll Interval:</span>
+                <p className="font-medium">{Math.round(pollingInterval / 1000)}s</p>
+              </div>
+            )}
           </div>
+
+          {/* Polling reason display */}
+          {isPolling && pollingReason !== 'not_needed' && (
+            <div className="flex items-center space-x-2">
+              <Clock className="h-4 w-4 text-blue-500" />
+              <span className="text-sm text-muted-foreground">
+                Polling reason: {pollingReason.replace('_', ' ')}
+              </span>
+            </div>
+          )}
+
+          {/* Authentication failure specific message */}
+          {isPollingForAuthFailure && (
+            <div className="flex items-center space-x-2 p-2 bg-orange-50 rounded-md">
+              <Activity className="h-4 w-4 text-orange-500" />
+              <span className="text-sm text-orange-700">
+                WebSocket authentication failed - using REST API fallback
+              </span>
+            </div>
+          )}
 
           {reconnectAttempts > 0 && (
             <div className="flex items-center space-x-2">
