@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { type WebSocketMessage } from '@/lib/types';
+import type { WebSocketMessage } from '@/lib/types';
 
 interface UseWebSocketOptions {
   url: string;
@@ -39,7 +39,7 @@ export function useWebSocket({
   const pingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastPongRef = useRef<number>(Date.now());
   
-  const startHeartbeat = useCallback(() => {
+  const startHeartbeat = useCallback((): void => {
     if (!enableHeartbeat) return;
     
     const sendPing = () => {
@@ -68,7 +68,7 @@ export function useWebSocket({
     heartbeatTimeoutRef.current = setInterval(sendPing, heartbeatInterval);
   }, [enableHeartbeat, heartbeatInterval]);
   
-  const stopHeartbeat = useCallback(() => {
+  const stopHeartbeat = useCallback((): void => {
     if (heartbeatTimeoutRef.current) {
       clearInterval(heartbeatTimeoutRef.current);
       heartbeatTimeoutRef.current = null;
@@ -79,7 +79,7 @@ export function useWebSocket({
     }
   }, []);
   
-  const connect = useCallback(() => {
+  const connect = useCallback((): void => {
     try {
       ws.current = new WebSocket(url);
       
@@ -178,7 +178,7 @@ export function useWebSocket({
     }
   }, [url, onMessage, onOpen, onClose, onError, onAuthError, onJobNotFound, onReconnecting, reconnectAttempts, reconnectInterval, startHeartbeat, stopHeartbeat]);
   
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback((): void => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -193,7 +193,7 @@ export function useWebSocket({
     reconnectCount.current = 0;
   }, [stopHeartbeat]);
   
-  const sendMessage = useCallback((message: any) => {
+  const sendMessage = useCallback((message: Record<string, unknown>): void => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify(message));
     } else {

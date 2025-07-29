@@ -1,10 +1,11 @@
-import { createContext, useContext, useCallback, useEffect, useState, useRef } from 'react';
+import { createContext, useContext, useCallback, useEffect, useState } from 'react';
 import { useDownloadsStore } from '@/stores/downloads-store';
 import { useServicesStore } from '@/stores/services-store';
 import { unshackleClient } from '@/lib/api';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { getJobWebSocketURL, getGlobalWebSocketURL } from '@/lib/utils';
-import { type WebSocketMessage, type ConnectionConfirmedEventData, isConnectionConfirmedEvent } from '@/lib/types';
+import type { WebSocketMessage } from '@/lib/types';
+import { isConnectionConfirmedEvent } from '@/lib/types';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error' | 'auth_failed' | 'job_not_found';
 
@@ -28,7 +29,7 @@ interface WebSocketContextType {
   connectionMetadata: ConnectionMetadata;
   reconnectAttempts: number;
   lastError: string | null;
-  sendMessage: (message: any) => void;
+  sendMessage: (message: Record<string, unknown>) => void;
   connect: () => void;
   disconnect: () => void;
   connectToJob: (jobId: string) => void;
@@ -50,7 +51,7 @@ export function WebSocketProvider({
   
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [currentReconnectAttempts, setCurrentReconnectAttempts] = useState(0);
-  const [autoConnect, setAutoConnect] = useState(true);
+  const [autoConnect, setAutoConnect] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const [currentWebSocketURL, setCurrentWebSocketURL] = useState<string | null>(null);
@@ -75,11 +76,13 @@ export function WebSocketProvider({
     setConnectionMetadata(prev => ({ ...prev, ...updates }));
   }, []);
 
-  const calculateConnectionQuality = useCallback((lastPong: Date | null, reconnectAttempts: number): ConnectionMetadata['connectionQuality'] => {
+  const calculateConnectionQuality = useCallback((
+    lastPong: Date | null, 
+    reconnectAttempts: number
+  ): ConnectionMetadata['connectionQuality'] => {
     if (!lastPong) return 'unknown';
     
     const timeSinceLastPong = Date.now() - lastPong.getTime();
-    const reconnectPenalty = Math.min(reconnectAttempts * 0.2, 1); // Max 1 point penalty
     
     if (timeSinceLastPong < 30000 && reconnectAttempts === 0) {
       return 'excellent';
@@ -90,7 +93,7 @@ export function WebSocketProvider({
     }
   }, []);
 
-  const updateConnectionDuration = useCallback(() => {
+  const updateConnectionDuration = useCallback((): void => {
     setConnectionMetadata(prev => {
       if (prev.lastConnected && isConnected) {
         const duration = Date.now() - prev.lastConnected.getTime();
@@ -108,15 +111,8 @@ export function WebSocketProvider({
     return () => clearInterval(interval);
   }, [isConnected, updateConnectionDuration]);
 
-  // Connect WebSocket when URL changes
-  useEffect(() => {
-    if (currentWebSocketURL && currentWebSocketURL.trim() !== '') {
-      console.log('WebSocket URL changed, connecting to:', currentWebSocketURL);
-      webSocketHook.connect();
-    }
-  }, [currentWebSocketURL, webSocketHook]);
 
-  const handleMessage = useCallback((message: WebSocketMessage) => {
+  const handleMessage = useCallback((message: WebSocketMessage): void => {
     try {
       // Parse API message format: {event_type, job_id, data, timestamp}
       const eventType = message.event_type || message.type; // Prioritize event_type from API
@@ -247,7 +243,7 @@ export function WebSocketProvider({
           console.debug('Received ping from server');
           break;
 
-        case 'pong':
+        case 'pong': {
           console.debug('Received pong from server');
           const now = new Date();
           updateConnectionMetadata({ 
@@ -255,6 +251,7 @@ export function WebSocketProvider({
             connectionQuality: calculateConnectionQuality(now, currentReconnectAttempts)
           });
           break;
+        }
 
         // API system notification events (could map to notification store if implemented)
         case 'system_notification':
@@ -291,10 +288,10 @@ export function WebSocketProvider({
     } catch (error) {
       console.error('Error handling WebSocket message:', error, { message });
     }
-  }, [handleJobUpdate, handleJobProgress, updateServiceStatus]);
+  }, [handleJobUpdate, handleJobProgress, updateServiceStatus, calculateConnectionQuality, currentReconnectAttempts, updateConnectionMetadata]);
 
   // Enhanced callback handlers for useWebSocket hook
-  const handleWebSocketOpen = useCallback(() => {
+  const handleWebSocketOpen = useCallback((): void => {
     console.log('WebSocket connection opened successfully');
     const now = new Date();
     setIsConnected(true);
@@ -309,7 +306,7 @@ export function WebSocketProvider({
     });
   }, [updateConnectionMetadata]);
 
-  const handleWebSocketClose = useCallback(() => {
+  const handleWebSocketClose = useCallback((): void => {
     console.log('WebSocket connection closed');
     const now = new Date();
     setIsConnected(false);
@@ -322,7 +319,7 @@ export function WebSocketProvider({
     });
   }, [updateConnectionMetadata, connectionState]);
 
-  const handleAuthError = useCallback(() => {
+  const handleAuthError = useCallback((): void => {
     console.error('WebSocket authentication failed');
     const now = new Date();
     setConnectionState('auth_failed');
@@ -336,7 +333,7 @@ export function WebSocketProvider({
     });
   }, [updateConnectionMetadata]);
 
-  const handleJobNotFoundError = useCallback(() => {
+  const handleJobNotFoundError = useCallback((): void => {
     console.error('WebSocket job not found');
     const now = new Date();
     setConnectionState('job_not_found');
@@ -350,7 +347,7 @@ export function WebSocketProvider({
     });
   }, [updateConnectionMetadata]);
 
-  const handleConnectionError = useCallback((error: Event) => {
+  const handleConnectionError = useCallback((error: Event): void => {
     console.error('WebSocket connection error:', error);
     const now = new Date();
     setConnectionState('error');
@@ -364,7 +361,7 @@ export function WebSocketProvider({
     });
   }, [updateConnectionMetadata]);
 
-  const handleReconnecting = useCallback((attempt: number) => {
+  const handleReconnecting = useCallback((attempt: number): void => {
     console.log(`WebSocket reconnecting (attempt ${attempt})`);
     setConnectionState('reconnecting');
     setCurrentReconnectAttempts(attempt);
@@ -388,8 +385,16 @@ export function WebSocketProvider({
     heartbeatInterval: 30000
   });
 
+  // Connect WebSocket when URL changes
+  useEffect(() => {
+    if (currentWebSocketURL && currentWebSocketURL.trim() !== '') {
+      console.log('WebSocket URL changed, connecting to:', currentWebSocketURL);
+      webSocketHook.connect();
+    }
+  }, [currentWebSocketURL, webSocketHook]);
+
   // Connection management functions
-  const connectToGlobal = useCallback(() => {
+  const connectToGlobal = useCallback((): void => {
     // Prevent multiple simultaneous connections
     if (connectionState === 'connecting' || connectionState === 'connected') {
       console.log('Already connecting or connected, skipping connectToGlobal');
@@ -407,7 +412,7 @@ export function WebSocketProvider({
     });
     
     try {
-      const globalURL = getGlobalWebSocketURL(unshackleClient.baseURL);
+      const globalURL = getGlobalWebSocketURL(unshackleClient.baseURL, unshackleClient.getApiKey());
       setCurrentWebSocketURL(globalURL);
       // The useWebSocket hook will handle the connection when URL changes
     } catch (error) {
@@ -418,7 +423,7 @@ export function WebSocketProvider({
     }
   }, [updateConnectionMetadata, connectionState]);
 
-  const connectToJob = useCallback((jobId: string) => {
+  const connectToJob = useCallback((jobId: string): void => {
     // Prevent multiple simultaneous connections
     if (connectionState === 'connecting' || connectionState === 'connected') {
       console.log(`Already connecting or connected, skipping connectToJob for ${jobId}`);
@@ -436,7 +441,7 @@ export function WebSocketProvider({
     });
     
     try {
-      const jobURL = getJobWebSocketURL(unshackleClient.baseURL, jobId);
+      const jobURL = getJobWebSocketURL(unshackleClient.baseURL, jobId, unshackleClient.getApiKey());
       setCurrentWebSocketURL(jobURL);
       // The useWebSocket hook will handle the connection when URL changes
     } catch (error) {
@@ -447,7 +452,7 @@ export function WebSocketProvider({
     }
   }, [updateConnectionMetadata, connectionState]);
 
-  const connect = useCallback(() => {
+  const connect = useCallback((): void => {
     if (connectionState === 'connecting' || connectionState === 'connected') {
       console.log('Already connecting or connected, skipping connect');
       return;
@@ -455,7 +460,7 @@ export function WebSocketProvider({
     connectToGlobal();
   }, [connectToGlobal, connectionState]);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback((): void => {
     try {
       webSocketHook.disconnect();
       setCurrentWebSocketURL(null);
@@ -475,16 +480,18 @@ export function WebSocketProvider({
     return { ...connectionMetadata };
   }, [connectionMetadata]);
 
-  const sendMessage = useCallback((message: any) => {
+  const sendMessage = useCallback((message: Record<string, unknown>): void => {
     // Use the consolidated WebSocket hook's sendMessage
     webSocketHook.sendMessage(message);
   }, [webSocketHook]);
 
-  // Auto-connect when component mounts
+  // Auto-connect when component mounts (disabled for now since WebSocket endpoints may not be available)
   useEffect(() => {
     if (autoConnect && connectionState === 'disconnected') {
       console.log('Auto-connecting WebSocket on mount...');
-      connect();
+      // Only connect if we have confirmed WebSocket endpoints are available
+      // For now, WebSocket connections are manual only
+      // connect();
     }
   }, [autoConnect, connectionState, connect]);
 

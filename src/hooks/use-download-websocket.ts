@@ -4,7 +4,18 @@ import { apiClientManager } from '@/lib/api/api-client-manager';
 import { useWebSocketContext } from '@/contexts/websocket-context';
 import { usePollingFallback } from './use-polling-fallback';
 
-export function useDownloadWebSocket() {
+interface UseDownloadWebSocketReturn {
+  isConnected: boolean;
+  isPolling: boolean;
+  pollingInterval: number;
+  lastPollingSuccess: Date | null;
+  pollingReason: string | null;
+  isPollingForAuthFailure: boolean;
+  isPollingForDisconnection: boolean;
+  connectionState: string;
+}
+
+export function useDownloadWebSocket(): UseDownloadWebSocketReturn {
   const { updateStats, setJobs } = useDownloadsStore();
   const { isConnected } = useWebSocketContext();
 
@@ -17,7 +28,7 @@ export function useDownloadWebSocket() {
   });
 
   // Load initial data
-  const loadInitialData = useCallback(async () => {
+  const loadInitialData = useCallback(async (): Promise<void> => {
     try {
       const client = apiClientManager.getUnshackleClient();
       const jobs = await client.getAllJobs();

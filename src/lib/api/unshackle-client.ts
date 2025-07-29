@@ -1,4 +1,15 @@
-import { type APIResponse, type SearchRequest, type SearchResult, type DownloadRequest, type DownloadJob, type ServiceInfo, type ServiceConfig, type ServiceAuthRequest, type ServiceConfigRequest, type WebSocketMessage } from '../types';
+import type { 
+  APIResponse, 
+  SearchRequest, 
+  SearchResult, 
+  DownloadRequest, 
+  DownloadJob, 
+  ServiceInfo, 
+  ServiceConfig, 
+  ServiceAuthRequest, 
+  ServiceConfigRequest, 
+  WebSocketMessage 
+} from '../types';
 import { APIError, APIErrorType } from './api-errors';
 
 export class UnshackleAPIClient {
@@ -11,6 +22,10 @@ export class UnshackleAPIClient {
   constructor(baseURL: string = 'http://localhost:8888', apiKey: string) {
     this.baseURL = baseURL;
     this.apiKey = apiKey;
+  }
+
+  getApiKey(): string {
+    return this.apiKey;
   }
 
   private getHeaders(): Record<string, string> {
@@ -68,7 +83,7 @@ export class UnshackleAPIClient {
 
   // Search for content
   async search(params: SearchRequest): Promise<SearchResult[]> {
-    const response = await this.request<SearchResult[]>('/api/search', {
+    const response = await this.request<SearchResult[]>('/api/v1/search', {
       method: 'POST',
       body: JSON.stringify(params),
     });
@@ -82,7 +97,7 @@ export class UnshackleAPIClient {
 
   // Start a download
   async startDownload(params: DownloadRequest): Promise<string> {
-    const response = await this.request<{ job_id: string }>('/api/download', {
+    const response = await this.request<{ job_id: string }>('/api/v1/download', {
       method: 'POST',
       body: JSON.stringify(params),
     });
@@ -96,7 +111,7 @@ export class UnshackleAPIClient {
 
   // Get job status
   async getJobStatus(jobId: string): Promise<DownloadJob> {
-    const response = await this.request<DownloadJob>(`/api/status/${jobId}`);
+    const response = await this.request<DownloadJob>(`/api/v1/jobs/${jobId}`);
 
     if (response.status === 'error') {
       throw new Error(response.error?.message || 'Failed to get job status');
@@ -111,7 +126,7 @@ export class UnshackleAPIClient {
 
   // Get all jobs
   async getAllJobs(): Promise<DownloadJob[]> {
-    const response = await this.request<DownloadJob[]>('/api/jobs');
+    const response = await this.request<DownloadJob[]>('/api/v1/jobs');
 
     if (response.status === 'error') {
       throw new Error(response.error?.message || 'Failed to get jobs');
@@ -122,7 +137,7 @@ export class UnshackleAPIClient {
 
   // Cancel a job
   async cancelJob(jobId: string): Promise<void> {
-    const response = await this.request(`/api/jobs/${jobId}`, {
+    const response = await this.request(`/api/v1/jobs/${jobId}`, {
       method: 'DELETE',
     });
 
@@ -133,7 +148,7 @@ export class UnshackleAPIClient {
 
   // Get available services
   async getServices(): Promise<ServiceInfo[]> {
-    const response = await this.request<ServiceInfo[]>('/api/services');
+    const response = await this.request<ServiceInfo[]>('/api/v1/services');
 
     if (response.status === 'error') {
       throw new Error(response.error?.message || 'Failed to get services');
@@ -145,7 +160,7 @@ export class UnshackleAPIClient {
 
   // Test service connection
   async testService(serviceId: string): Promise<boolean> {
-    const response = await this.request<{ success: boolean }>(`/api/services/${serviceId}/test`, {
+    const response = await this.request<{ success: boolean }>(`/api/v1/services/${serviceId}/test`, {
       method: 'POST',
     });
 
@@ -158,7 +173,7 @@ export class UnshackleAPIClient {
 
   // Authenticate with service
   async authenticateService(params: ServiceAuthRequest): Promise<void> {
-    const response = await this.request(`/api/services/${params.service_id}/auth`, {
+    const response = await this.request(`/api/v1/services/${params.service_id}/auth`, {
       method: 'POST',
       body: JSON.stringify({ credentials: params.credentials }),
     });
@@ -170,7 +185,7 @@ export class UnshackleAPIClient {
 
   // Logout from service
   async logoutService(serviceId: string): Promise<void> {
-    const response = await this.request(`/api/services/${serviceId}/auth`, {
+    const response = await this.request(`/api/v1/services/${serviceId}/auth`, {
       method: 'DELETE',
     });
 
@@ -181,7 +196,7 @@ export class UnshackleAPIClient {
 
   // Get service configuration
   async getServiceConfig(serviceId: string): Promise<ServiceConfig> {
-    const response = await this.request<ServiceConfig>(`/api/services/${serviceId}/config`);
+    const response = await this.request<ServiceConfig>(`/api/v1/services/${serviceId}/config`);
 
     if (response.status === 'error') {
       throw new Error(response.error?.message || 'Failed to get service config');
@@ -196,7 +211,7 @@ export class UnshackleAPIClient {
 
   // Update service configuration
   async updateServiceConfig(params: ServiceConfigRequest): Promise<void> {
-    const response = await this.request(`/api/services/${params.service_id}/config`, {
+    const response = await this.request(`/api/v1/services/${params.service_id}/config`, {
       method: 'PUT',
       body: JSON.stringify(params.config),
     });
@@ -208,7 +223,7 @@ export class UnshackleAPIClient {
 
   // Enable/disable service
   async toggleService(serviceId: string, enabled: boolean): Promise<void> {
-    const response = await this.request(`/api/services/${serviceId}/${enabled ? 'enable' : 'disable'}`, {
+    const response = await this.request(`/api/v1/services/${serviceId}/${enabled ? 'enable' : 'disable'}`, {
       method: 'POST',
     });
 
@@ -386,7 +401,7 @@ export class UnshackleAPIClient {
     if (this.wsConnection) {
       this.wsConnection.close();
       this.wsConnection = null;
-      }
+    }
   }
 
   // Retry logic for failed requests
@@ -415,13 +430,17 @@ export class UnshackleAPIClient {
     throw lastError!;
   }
 
-  private isRetryableError(error: any): boolean {
+  private isRetryableError(error: unknown): boolean {
     // Network errors, timeouts, and 5xx status codes are retryable
-    return (
-      error.name === 'NetworkError' ||
-      error.code === 'ECONNRESET' ||
-      (error.status >= 500 && error.status < 600)
-    );
+    if (typeof error === 'object' && error !== null) {
+      const err = error as { name?: string; code?: string; status?: number };
+      return (
+        err.name === 'NetworkError' ||
+        err.code === 'ECONNRESET' ||
+        (typeof err.status === 'number' && err.status >= 500 && err.status < 600)
+      );
+    }
+    return false;
   }
 
   private delay(ms: number): Promise<void> {

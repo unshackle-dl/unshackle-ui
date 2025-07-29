@@ -11,11 +11,8 @@ export function QueuePage() {
   // Connect to WebSocket for real-time download updates and get status
   const { 
     isConnected,
-    isPolling, 
-    pollingInterval, 
-    pollingReason,
-    isPollingForAuthFailure,
-    connectionState 
+    isPolling,
+    isPollingForAuthFailure
   } = useDownloadWebSocket();
   
   // Filter jobs by status

@@ -1,43 +1,54 @@
-import { useWebSocketContext } from '@/contexts/websocket-context';
-import { useDownloadWebSocket } from '@/hooks/use-download-websocket';
-import { ConnectionStatusIndicator } from '@/components/layout/connection-status-indicator';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Power, PowerOff, Activity, Clock, Wifi } from 'lucide-react';
+import { useWebSocketContext } from "@/contexts/websocket-context";
+import { useDownloadWebSocket } from "@/hooks/use-download-websocket";
+import { ConnectionStatusIndicator } from "@/components/layout/connection-status-indicator";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  RefreshCw,
+  Power,
+  PowerOff,
+  Activity,
+  Clock,
+  Wifi,
+} from "lucide-react";
 
 interface WebSocketStatusProps {
   showControls?: boolean;
   compact?: boolean;
 }
 
-export function WebSocketStatus({ showControls = false, compact = false }: WebSocketStatusProps) {
-  const { 
-    isConnected, 
-    connectionState, 
-    connectionMetadata, 
-    reconnectAttempts, 
-    connect, 
-    disconnect 
+export function WebSocketStatus({
+  showControls = false,
+  compact = false,
+}: WebSocketStatusProps) {
+  const {
+    isConnected,
+    connectionState,
+    connectionMetadata,
+    reconnectAttempts,
+    connect,
+    disconnect,
   } = useWebSocketContext();
-  
+
   // Get polling status for enhanced feedback
-  const { 
-    isPolling, 
-    pollingInterval, 
-    pollingReason,
-    isPollingForAuthFailure,
-    isPollingForDisconnection 
-  } = useDownloadWebSocket();
+  const { isPolling, pollingInterval, isPollingForAuthFailure } =
+    useDownloadWebSocket();
 
   const formatLastConnected = () => {
-    if (!connectionMetadata.lastConnected) return 'Never';
+    if (!connectionMetadata.lastConnected) return "Never";
     const now = new Date();
     const diff = now.getTime() - connectionMetadata.lastConnected.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
-    
+
     if (days > 0) {
       return `${days}d ago`;
     } else if (hours > 0) {
@@ -45,20 +56,26 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
     } else if (minutes > 0) {
       return `${minutes}m ago`;
     } else {
-      return 'Just now';
+      return "Just now";
     }
   };
 
   const getStatusColor = () => {
     switch (connectionState) {
-      case 'connected': return 'text-green-600';
-      case 'connecting': 
-      case 'reconnecting': return 'text-yellow-600';
-      case 'auth_failed': return 'text-orange-600';
-      case 'job_not_found': return 'text-purple-600';
-      case 'error': return 'text-red-600';
-      case 'disconnected': 
-      default: return 'text-gray-600';
+      case "connected":
+        return "text-green-600";
+      case "connecting":
+      case "reconnecting":
+        return "text-yellow-600";
+      case "auth_failed":
+        return "text-orange-600";
+      case "job_not_found":
+        return "text-purple-600";
+      case "error":
+        return "text-red-600";
+      case "disconnected":
+      default:
+        return "text-gray-600";
     }
   };
 
@@ -72,7 +89,10 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
           </Badge>
         )}
         {isPolling && (
-          <Badge variant="outline" className="text-xs flex items-center space-x-1">
+          <Badge
+            variant="outline"
+            className="text-xs flex items-center space-x-1"
+          >
             <Clock className="h-3 w-3" />
             <span>Polling</span>
           </Badge>
@@ -87,12 +107,18 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-sm font-medium">
-              {isConnected ? 'WebSocket Connection' : isPolling ? 'Polling Mode' : 'Disconnected'}
+              {isConnected
+                ? "WebSocket Connection"
+                : isPolling
+                ? "Polling Mode"
+                : "Disconnected"}
             </CardTitle>
             <CardDescription className="text-xs">
-              {isConnected ? 'Real-time updates active' : 
-               isPolling ? 'REST API fallback active' : 
-               'No updates available'}
+              {isConnected
+                ? "Real-time updates active"
+                : isPolling
+                ? "REST API fallback active"
+                : "No updates available"}
             </CardDescription>
           </div>
           <ConnectionStatusIndicator showPollingMode />
@@ -136,17 +162,19 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
             {isPolling && (
               <div>
                 <span className="text-muted-foreground">Poll Interval:</span>
-                <p className="font-medium">{Math.round(pollingInterval / 1000)}s</p>
+                <p className="font-medium">
+                  {Math.round(pollingInterval / 1000)}s
+                </p>
               </div>
             )}
           </div>
 
           {/* Polling reason display */}
-          {isPolling && pollingReason !== 'not_needed' && (
+          {isPolling && pollingReason !== "not_needed" && (
             <div className="flex items-center space-x-2">
               <Clock className="h-4 w-4 text-blue-500" />
               <span className="text-sm text-muted-foreground">
-                Polling reason: {pollingReason.replace('_', ' ')}
+                Polling reason: {pollingReason.replace("_", " ")}
               </span>
             </div>
           )}

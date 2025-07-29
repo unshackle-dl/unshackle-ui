@@ -8,18 +8,18 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * WebSocket URL construction utilities
  */
-export function constructWebSocketURL(baseURL: string, path: string, token: string = 'devwork'): string {
+export function constructWebSocketURL(baseURL: string, path: string, apiKey: string): string {
   // Convert HTTP base URL to WebSocket URL
   const wsBaseURL = baseURL.replace(/^http/, 'ws');
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${wsBaseURL}${normalizedPath}?token=${token}`;
+  return `${wsBaseURL}${normalizedPath}?token=${apiKey}`;
 }
 
-export function getJobWebSocketURL(baseURL: string, jobId: string): string {
-  return constructWebSocketURL(baseURL, `/api/v1/jobs/${jobId}/events`);
+export function getJobWebSocketURL(baseURL: string, jobId: string, apiKey: string): string {
+  return constructWebSocketURL(baseURL, `/api/v1/jobs/${jobId}/events`, apiKey);
 }
 
-export function getGlobalWebSocketURL(baseURL: string): string {
-  return constructWebSocketURL(baseURL, '/api/v1/events');
+export function getGlobalWebSocketURL(baseURL: string, apiKey: string): string {
+  return constructWebSocketURL(baseURL, '/api/v1/events', apiKey);
 }
