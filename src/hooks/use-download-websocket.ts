@@ -1,21 +1,19 @@
 import { useEffect, useCallback } from 'react';
 import { useDownloadsStore } from '@/stores/downloads-store';
-import { useServicesStore } from '@/stores/services-store';
 import { apiClientManager } from '@/lib/api/api-client-manager';
 import { useWebSocketContext } from '@/contexts/websocket-context';
 import { usePollingFallback } from './use-polling-fallback';
-import type { WebSocketMessage, DownloadJob } from '@/lib/types';
 
 export function useDownloadWebSocket() {
-  const { handleJobUpdate, handleJobProgress, updateStats, setJobs } = useDownloadsStore();
-  const { updateServiceStatus } = useServicesStore();
+  const { updateStats, setJobs } = useDownloadsStore();
   const { isConnected } = useWebSocketContext();
 
-  // Initialize polling fallback
+  // Initialize enhanced polling fallback with auth failure support
   const pollingFallback = usePollingFallback({
     interval: 3000, // Poll every 3 seconds when disconnected
     maxInterval: 15000, // Max 15 seconds between polls
     onlyWhenDisconnected: true,
+    activateOnAuthFailure: true, // Enable polling when WebSocket auth fails
   });
 
   // Load initial data
@@ -41,5 +39,10 @@ export function useDownloadWebSocket() {
     isPolling: pollingFallback.isPolling,
     pollingInterval: pollingFallback.currentInterval,
     lastPollingSuccess: pollingFallback.lastSuccess,
+    // Enhanced polling status information
+    pollingReason: pollingFallback.pollingReason,
+    isPollingForAuthFailure: pollingFallback.isActiveForAuthFailure,
+    isPollingForDisconnection: pollingFallback.isActiveForDisconnection,
+    connectionState: pollingFallback.connectionState,
   };
 }

@@ -9,6 +9,7 @@ interface PollingConfig {
   maxInterval: number;
   backoffMultiplier: number;
   onlyWhenDisconnected?: boolean;
+  activateOnAuthFailure?: boolean; // New: activate polling when WebSocket auth fails
 }
 
 const DEFAULT_CONFIG: PollingConfig = {
@@ -17,11 +18,12 @@ const DEFAULT_CONFIG: PollingConfig = {
   maxInterval: 30000, // 30 seconds max
   backoffMultiplier: 1.5,
   onlyWhenDisconnected: true,
+  activateOnAuthFailure: true, // Default: activate polling on auth failures
 };
 
 export function usePollingFallback(config: Partial<PollingConfig> = {}) {
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
-  const { isConnected } = useWebSocketContext();
+  const { isConnected, connectionState } = useWebSocketContext();
   const { setJobs, updateStats } = useDownloadsStore();
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,15 +51,29 @@ export function usePollingFallback(config: Partial<PollingConfig> = {}) {
       // Reset interval on success
       currentIntervalRef.current = mergedConfig.interval;
       
+      console.debug(`Polling successful: retrieved ${jobs.length} jobs`);
       return true;
     } catch (error) {
       console.warn('Polling failed:', error);
       
+      // Check if this is an authentication error from the API
+      if (error instanceof Error && (
+        error.message.includes('401') || 
+        error.message.includes('Unauthorized') ||
+        error.message.includes('Authentication failed')
+      )) {
+        console.error('Polling failed due to authentication error - REST API also requires valid token');
+        // Still continue polling as it may be a temporary issue
+      }
+      
       // Exponential backoff on failure
-      currentIntervalRef.current = Math.min(
+      const newInterval = Math.min(
         currentIntervalRef.current * mergedConfig.backoffMultiplier,
         mergedConfig.maxInterval
       );
+      
+      console.debug(`Polling backoff: increasing interval from ${currentIntervalRef.current}ms to ${newInterval}ms`);
+      currentIntervalRef.current = newInterval;
       
       return false;
     }
@@ -90,29 +106,47 @@ export function usePollingFallback(config: Partial<PollingConfig> = {}) {
     clearPolling();
   }, [clearPolling]);
 
-  // Manage polling based on WebSocket connection
-  useEffect(() => {
-    if (!mergedConfig.enabled) {
-      clearPolling();
-      return;
+  // Enhanced polling logic that considers WebSocket connection state and auth failures
+  const shouldStartPolling = useCallback(() => {
+    if (!mergedConfig.enabled) return false;
+    
+    // Start polling when disconnected (standard fallback)
+    if (!isConnected) {
+      console.log('Starting polling: WebSocket disconnected');
+      return true;
     }
+    
+    // Start polling when authentication fails (enhanced fallback)
+    if (mergedConfig.activateOnAuthFailure && connectionState === 'auth_failed') {
+      console.log('Starting polling: WebSocket authentication failed');
+      return true;
+    }
+    
+    // Start polling when job not found (enhanced fallback)
+    if (mergedConfig.activateOnAuthFailure && connectionState === 'job_not_found') {
+      console.log('Starting polling: WebSocket job not found');
+      return true;
+    }
+    
+    // Always poll mode (less common)
+    if (!mergedConfig.onlyWhenDisconnected) {
+      return true;
+    }
+    
+    return false;
+  }, [isConnected, connectionState, mergedConfig.enabled, mergedConfig.onlyWhenDisconnected, mergedConfig.activateOnAuthFailure]);
 
-    if (mergedConfig.onlyWhenDisconnected) {
-      if (!isConnected) {
-        startPolling();
-      } else {
-        stopPolling();
-      }
-    } else {
-      // Always poll (less common use case)
+  // Manage polling based on WebSocket connection state and auth status
+  useEffect(() => {
+    if (shouldStartPolling()) {
       startPolling();
+    } else {
+      stopPolling();
     }
 
     return () => clearPolling();
   }, [
-    isConnected, 
-    mergedConfig.enabled, 
-    mergedConfig.onlyWhenDisconnected,
+    shouldStartPolling,
     startPolling,
     stopPolling,
     clearPolling
@@ -129,5 +163,15 @@ export function usePollingFallback(config: Partial<PollingConfig> = {}) {
     lastSuccess: lastSuccessRef.current,
     startPolling,
     stopPolling,
+    // Enhanced status information
+    isActiveForAuthFailure: mergedConfig.activateOnAuthFailure && (connectionState === 'auth_failed' || connectionState === 'job_not_found'),
+    isActiveForDisconnection: !isConnected,
+    connectionState,
+    pollingReason: shouldStartPolling() ? 
+      (!isConnected ? 'disconnected' : 
+       connectionState === 'auth_failed' ? 'auth_failed' : 
+       connectionState === 'job_not_found' ? 'job_not_found' : 
+       'always_enabled') : 
+      'not_needed'
   };
 }

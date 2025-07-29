@@ -1,7 +1,9 @@
-import { createContext, useContext, useCallback, useEffect, useState } from 'react';
+import { createContext, useContext, useCallback, useEffect, useState, useRef } from 'react';
 import { useDownloadsStore } from '@/stores/downloads-store';
 import { useServicesStore } from '@/stores/services-store';
 import { unshackleClient } from '@/lib/api';
+import { useWebSocket } from '@/hooks/use-websocket';
+import { getJobWebSocketURL, getGlobalWebSocketURL } from '@/lib/utils';
 import { type WebSocketMessage, type ConnectionConfirmedEventData, isConnectionConfirmedEvent } from '@/lib/types';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error' | 'auth_failed' | 'job_not_found';
@@ -51,6 +53,7 @@ export function WebSocketProvider({
   const [autoConnect, setAutoConnect] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [currentWebSocketURL, setCurrentWebSocketURL] = useState<string | null>(null);
   
   // Enhanced metadata tracking
   const [connectionMetadata, setConnectionMetadata] = useState<ConnectionMetadata>({
@@ -104,6 +107,14 @@ export function WebSocketProvider({
     const interval = setInterval(updateConnectionDuration, 30000);
     return () => clearInterval(interval);
   }, [isConnected, updateConnectionDuration]);
+
+  // Connect WebSocket when URL changes
+  useEffect(() => {
+    if (currentWebSocketURL && currentWebSocketURL.trim() !== '') {
+      console.log('WebSocket URL changed, connecting to:', currentWebSocketURL);
+      webSocketHook.connect();
+    }
+  }, [currentWebSocketURL, webSocketHook]);
 
   const handleMessage = useCallback((message: WebSocketMessage) => {
     try {
@@ -282,7 +293,35 @@ export function WebSocketProvider({
     }
   }, [handleJobUpdate, handleJobProgress, updateServiceStatus]);
 
-  // Enhanced error handling callbacks with metadata tracking
+  // Enhanced callback handlers for useWebSocket hook
+  const handleWebSocketOpen = useCallback(() => {
+    console.log('WebSocket connection opened successfully');
+    const now = new Date();
+    setIsConnected(true);
+    setConnectionState('connected');
+    setCurrentReconnectAttempts(0);
+    updateConnectionMetadata({
+      lastConnected: now,
+      connectionDuration: 0,
+      connectionQuality: 'good',
+      lastPong: now, // Initialize as just connected
+      isHeartbeatActive: true
+    });
+  }, [updateConnectionMetadata]);
+
+  const handleWebSocketClose = useCallback(() => {
+    console.log('WebSocket connection closed');
+    const now = new Date();
+    setIsConnected(false);
+    if (connectionState !== 'auth_failed' && connectionState !== 'job_not_found') {
+      setConnectionState('disconnected');
+    }
+    updateConnectionMetadata({
+      lastDisconnected: now,
+      isHeartbeatActive: false
+    });
+  }, [updateConnectionMetadata, connectionState]);
+
   const handleAuthError = useCallback(() => {
     console.error('WebSocket authentication failed');
     const now = new Date();
@@ -325,6 +364,30 @@ export function WebSocketProvider({
     });
   }, [updateConnectionMetadata]);
 
+  const handleReconnecting = useCallback((attempt: number) => {
+    console.log(`WebSocket reconnecting (attempt ${attempt})`);
+    setConnectionState('reconnecting');
+    setCurrentReconnectAttempts(attempt);
+    updateConnectionMetadata({
+      totalReconnectAttempts: connectionMetadata.totalReconnectAttempts + 1
+    });
+  }, [updateConnectionMetadata, connectionMetadata.totalReconnectAttempts]);
+
+  // Initialize useWebSocket hook with current URL
+  const webSocketHook = useWebSocket({
+    url: currentWebSocketURL || '',
+    onMessage: handleMessage,
+    onOpen: handleWebSocketOpen,
+    onClose: handleWebSocketClose,
+    onError: handleConnectionError,
+    onAuthError: handleAuthError,
+    onJobNotFound: handleJobNotFoundError,
+    onReconnecting: handleReconnecting,
+    autoConnect: false, // We'll control connection manually
+    enableHeartbeat: true,
+    heartbeatInterval: 30000
+  });
+
   // Connection management functions
   const connectToGlobal = useCallback(() => {
     // Prevent multiple simultaneous connections
@@ -343,48 +406,17 @@ export function WebSocketProvider({
       isHeartbeatActive: true
     });
     
-    const handleOpen = () => {
-      console.log('Global WebSocket connection opened successfully');
-      const now = new Date();
-      setIsConnected(true);
-      setConnectionState('connected');
-      setCurrentReconnectAttempts(0);
-      updateConnectionMetadata({
-        lastConnected: now,
-        connectionDuration: 0,
-        connectionQuality: 'good',
-        lastPong: now // Initialize as just connected
-      });
-    };
-
-    const handleClose = () => {
-      console.log('Global WebSocket connection closed');
-      const now = new Date();
-      setIsConnected(false);
-      if (connectionState !== 'auth_failed' && connectionState !== 'job_not_found') {
-        setConnectionState('disconnected');
-      }
-      updateConnectionMetadata({
-        lastDisconnected: now,
-        isHeartbeatActive: false
-      });
-    };
-
     try {
-      unshackleClient.connectToGlobalEvents(
-        handleMessage,
-        handleOpen,
-        handleClose,
-        handleAuthError,
-        handleConnectionError
-      );
+      const globalURL = getGlobalWebSocketURL(unshackleClient.baseURL);
+      setCurrentWebSocketURL(globalURL);
+      // The useWebSocket hook will handle the connection when URL changes
     } catch (error) {
-      console.error('Failed to connect to global events:', error);
+      console.error('Failed to construct global WebSocket URL:', error);
       setConnectionState('error');
       setIsConnected(false);
       setLastError('Failed to establish WebSocket connection');
     }
-  }, [handleMessage, handleAuthError, handleConnectionError]);
+  }, [updateConnectionMetadata, connectionState]);
 
   const connectToJob = useCallback((jobId: string) => {
     // Prevent multiple simultaneous connections
@@ -403,74 +435,17 @@ export function WebSocketProvider({
       isHeartbeatActive: true
     });
     
-    // Enhanced message handler for job-specific connections
-    const handleJobMessage = useCallback((message: WebSocketMessage) => {
-      // Check if this could be an initial job status message
-      const isPotentialInitialStatus = (
-        message.event_type === 'job_status' || 
-        message.event_type === 'connection_confirmed' ||
-        message.event_type === 'initial_status' ||
-        // Any message with job status data within first few seconds of connection
-        (message.data && message.data.status && message.timestamp && 
-         (Date.now() - message.timestamp * 1000) < 10000)
-      );
-      
-      if (isPotentialInitialStatus) {
-        console.log(`Processing potential initial job status for ${jobId}:`, {
-          eventType: message.event_type,
-          hasStatus: !!message.data?.status,
-          timestamp: message.timestamp
-        });
-      }
-      
-      // Handle all messages through the standard handler
-      handleMessage(message);
-    }, [handleMessage, jobId]);
-    
-    const handleOpen = () => {
-      console.log(`Job ${jobId} WebSocket connection opened successfully - awaiting initial job status`);
-      const now = new Date();
-      setIsConnected(true);
-      setConnectionState('connected');
-      setCurrentReconnectAttempts(0);
-      updateConnectionMetadata({
-        lastConnected: now,
-        connectionDuration: 0,
-        connectionQuality: 'good',
-        lastPong: now // Initialize as just connected
-      });
-    };
-
-    const handleClose = () => {
-      console.log(`Job ${jobId} WebSocket connection closed`);
-      const now = new Date();
-      setIsConnected(false);
-      if (connectionState !== 'auth_failed' && connectionState !== 'job_not_found') {
-        setConnectionState('disconnected');
-      }
-      updateConnectionMetadata({
-        lastDisconnected: now,
-        isHeartbeatActive: false
-      });
-    };
-
     try {
-      unshackleClient.connectToJobEvents(
-        jobId,
-        handleJobMessage,
-        handleOpen,
-        handleClose,
-        handleAuthError,
-        handleJobNotFoundError,
-        handleConnectionError
-      );
+      const jobURL = getJobWebSocketURL(unshackleClient.baseURL, jobId);
+      setCurrentWebSocketURL(jobURL);
+      // The useWebSocket hook will handle the connection when URL changes
     } catch (error) {
-      console.error(`Failed to connect to job ${jobId} events:`, error);
+      console.error(`Failed to construct job ${jobId} WebSocket URL:`, error);
       setConnectionState('error');
       setIsConnected(false);
       setLastError(`Failed to connect to job ${jobId}`);
     }
-  }, [handleMessage, handleAuthError, handleConnectionError, connectionState]);
+  }, [updateConnectionMetadata, connectionState]);
 
   const connect = useCallback(() => {
     if (connectionState === 'connecting' || connectionState === 'connected') {
@@ -482,7 +457,8 @@ export function WebSocketProvider({
 
   const disconnect = useCallback(() => {
     try {
-      unshackleClient.disconnectWebSocket();
+      webSocketHook.disconnect();
+      setCurrentWebSocketURL(null);
       const now = new Date();
       setIsConnected(false);
       setConnectionState('disconnected');
@@ -493,17 +469,16 @@ export function WebSocketProvider({
     } catch (error) {
       console.error('Failed to disconnect WebSocket:', error);
     }
-  }, [updateConnectionMetadata]);
+  }, [updateConnectionMetadata, webSocketHook]);
 
   const getConnectionStats = useCallback((): ConnectionMetadata => {
     return { ...connectionMetadata };
   }, [connectionMetadata]);
 
-  const sendMessage = useCallback((_message: any) => {
-    // Note: The UnshackleClient doesn't expose a sendMessage method
-    // This is kept for compatibility but may not work with the current API client
-    console.warn('sendMessage not implemented with UnshackleClient');
-  }, []);
+  const sendMessage = useCallback((message: any) => {
+    // Use the consolidated WebSocket hook's sendMessage
+    webSocketHook.sendMessage(message);
+  }, [webSocketHook]);
 
   // Auto-connect when component mounts
   useEffect(() => {
@@ -517,9 +492,9 @@ export function WebSocketProvider({
   useEffect(() => {
     return () => {
       console.log('WebSocketProvider unmounting, disconnecting WebSocket...');
-      unshackleClient.disconnectWebSocket();
+      webSocketHook.disconnect();
     };
-  }, []);
+  }, [webSocketHook]);
   
   const contextValue = {
     isConnected,

@@ -14,16 +14,16 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
   const { 
     isConnected, 
     connectionState, 
-    lastConnected, 
+    connectionMetadata, 
     reconnectAttempts, 
     connect, 
     disconnect 
   } = useWebSocketContext();
 
   const formatLastConnected = () => {
-    if (!lastConnected) return 'Never';
+    if (!connectionMetadata.lastConnected) return 'Never';
     const now = new Date();
-    const diff = now.getTime() - lastConnected.getTime();
+    const diff = now.getTime() - connectionMetadata.lastConnected.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
@@ -44,6 +44,8 @@ export function WebSocketStatus({ showControls = false, compact = false }: WebSo
       case 'connected': return 'text-green-600';
       case 'connecting': 
       case 'reconnecting': return 'text-yellow-600';
+      case 'auth_failed': return 'text-orange-600';
+      case 'job_not_found': return 'text-purple-600';
       case 'error': return 'text-red-600';
       case 'disconnected': 
       default: return 'text-gray-600';
