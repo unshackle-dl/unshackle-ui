@@ -17,7 +17,7 @@ export function constructWebSocketURL(baseURL: string, path: string, apiKey: str
 }
 
 export function getJobWebSocketURL(baseURL: string, jobId: string, apiKey: string): string {
-  return constructWebSocketURL(baseURL, `/api/v1/jobs/${jobId}/events`, apiKey);
+  return constructWebSocketURL(baseURL, `/api/v1/downloads/jobs/${jobId}/events`, apiKey);
 }
 
 export function getGlobalWebSocketURL(baseURL: string, apiKey: string): string {

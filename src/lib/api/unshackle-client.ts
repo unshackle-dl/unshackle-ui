@@ -97,7 +97,7 @@ export class UnshackleAPIClient {
 
   // Start a download
   async startDownload(params: DownloadRequest): Promise<string> {
-    const response = await this.request<{ job_id: string }>('/api/v1/download', {
+    const response = await this.request<{ job_id: string }>('/api/v1/downloads/start', {
       method: 'POST',
       body: JSON.stringify(params),
     });
@@ -111,7 +111,7 @@ export class UnshackleAPIClient {
 
   // Get job status
   async getJobStatus(jobId: string): Promise<DownloadJob> {
-    const response = await this.request<DownloadJob>(`/api/v1/jobs/${jobId}`);
+    const response = await this.request<DownloadJob>(`/api/v1/downloads/jobs/${jobId}`);
 
     if (response.status === 'error') {
       throw new Error(response.error?.message || 'Failed to get job status');
@@ -126,7 +126,7 @@ export class UnshackleAPIClient {
 
   // Get all jobs
   async getAllJobs(): Promise<DownloadJob[]> {
-    const response = await this.request<DownloadJob[]>('/api/v1/jobs');
+    const response = await this.request<DownloadJob[]>('/api/v1/downloads/queue');
 
     if (response.status === 'error') {
       throw new Error(response.error?.message || 'Failed to get jobs');
@@ -137,8 +137,8 @@ export class UnshackleAPIClient {
 
   // Cancel a job
   async cancelJob(jobId: string): Promise<void> {
-    const response = await this.request(`/api/v1/jobs/${jobId}`, {
-      method: 'DELETE',
+    const response = await this.request(`/api/v1/downloads/jobs/${jobId}/cancel`, {
+      method: 'POST',
     });
 
     if (response.status === 'error') {
@@ -148,7 +148,7 @@ export class UnshackleAPIClient {
 
   // Get available services
   async getServices(): Promise<ServiceInfo[]> {
-    const response = await this.request<ServiceInfo[]>('/api/v1/services');
+    const response = await this.request<ServiceInfo[]>('/api/v1/availability/services');
 
     if (response.status === 'error') {
       throw new Error(response.error?.message || 'Failed to get services');
@@ -253,7 +253,7 @@ export class UnshackleAPIClient {
       return;
     }
 
-    const wsURL = this.baseURL.replace(/^http/, 'ws') + `/api/v1/jobs/${jobId}/events?token=devwork`;
+    const wsURL = this.baseURL.replace(/^http/, 'ws') + `/api/v1/downloads/jobs/${jobId}/events?token=devwork`;
     this.wsConnection = new WebSocket(wsURL);
 
     this.wsConnection.onopen = () => {
