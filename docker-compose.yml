@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  justwatch-search:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: justwatch-search
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/data/cache.db
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - SIMKL_API_KEY=${SIMKL_API_KEY}
+      - DEFAULT_COUNTRY=${DEFAULT_COUNTRY:-US}
+      - MAX_RESULTS_PER_SOURCE=${MAX_RESULTS_PER_SOURCE:-20}
+      - ENABLE_DEDUPLICATION=${ENABLE_DEDUPLICATION:-true}
+      - CACHE_TTL_SEARCH=${CACHE_TTL_SEARCH:-3600}
+      - CACHE_TTL_DETAILS=${CACHE_TTL_DETAILS:-7200}
+      - CACHE_TTL_RATINGS=${CACHE_TTL_RATINGS:-86400}
+    volumes:
+      # Persist database data
+      - justwatch_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  justwatch_data:
+    driver: local
