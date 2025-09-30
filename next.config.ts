@@ -5,11 +5,16 @@ const nextConfig: NextConfig = {
   output: 'standalone',
 
   // Allow cross-origin requests during development
-  allowedDevOrigins: ['http://95.168.172.167:3000'],
+  allowedDevOrigins: ['95.168.172.167:3000', '136.243.106.220:3000', '136.243.106.220'],
 
   // Optimize for production
   experimental: {
     optimizePackageImports: ['@/components/ui', 'lucide-react'],
+    // Increase default execution time for API routes to 5 minutes (300 seconds)
+    // This allows list-tracks operations to complete (can take 2-5 minutes)
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
   },
 
   // Image optimization for external sources

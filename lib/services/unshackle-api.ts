@@ -5,65 +5,112 @@
 import { API_CONFIG, getApiUrl, getWebSocketUrl } from '@/lib/config/api';
 
 // Request/Response types for the Unshackle API
-export interface ServiceAvailabilityRequest {
-  streaming_urls: string[];
+
+// Service types
+export interface ServiceInfo {
+  tag: string;
+  aliases: string[];
+  geofence: string[];
+  title_regex: string | null;
+  help: string | null;
 }
 
-export interface ServiceMatch {
-  url: string;
-  service: string | null;
-  supported: boolean;
-  content_id: string | null;
-  content_type: string | null;
-  requires_auth: boolean;
-  match_method: string | null;
+export interface ServicesResponse {
+  services: ServiceInfo[];
 }
 
-export interface ServiceAvailabilityResponse {
-  matches: ServiceMatch[];
+// Title types
+export interface TitleInfo {
+  type: 'movie' | 'episode' | 'other';
+  name: string;
+  series_title?: string;
+  season?: number;
+  number?: number;
+  year?: number;
+  id?: string;
 }
 
-export interface TrackListingRequest {
+export interface ListTitlesRequest {
   service: string;
-  url: string;
-  selection?: {
-    type: 'all' | 'season' | 'episode';
-    season?: number;
-    episode?: number;
-  };
+  title_id: string;
   profile?: string;
   proxy?: string;
+  no_proxy?: boolean;
 }
 
-export interface TrackInfo {
+export interface ListTitlesResponse {
+  titles: TitleInfo[];
+}
+
+// Track types
+export interface VideoTrack {
   id: string;
-  type: string;
-  language?: string;
-  codec?: string;
-  resolution?: string;
-  bitrate?: string;
-  channels?: string;
-  format?: string;
-  fps?: number;
-  hdr?: string;
+  codec: string;
+  codec_display: string;
+  bitrate: number | null;
+  width: number | null;
+  height: number | null;
+  resolution: string | null;
+  fps: number | null;
+  range: string;
+  range_display: string;
+  hdr?: string; // Compatibility alias for range_display
+  language: string | null;
+  drm: string | null;
 }
 
-export interface EpisodeInfo {
-  season: number;
-  episode: number;
-  title?: string;
-  video_tracks: TrackInfo[];
-  audio_tracks: TrackInfo[];
-  subtitle_tracks: TrackInfo[];
+export interface AudioTrack {
+  id: string;
+  codec: string;
+  codec_display: string;
+  bitrate: number | null;
+  channels: number | null;
+  language: string | null;
+  atmos: boolean;
+  descriptive: boolean;
+  drm: string | null;
 }
 
-export interface TrackListingResponse {
-  cache_id: string;
-  episodes: EpisodeInfo[];
-  cached_at?: string;
-  expires_at?: string;
+export interface SubtitleTrack {
+  id: string;
+  codec: string;
+  format?: string; // Compatibility alias for codec
+  language: string | null;
+  forced: boolean;
+  sdh: boolean;
+  cc: boolean;
 }
 
+export interface EpisodeTracksInfo {
+  title: TitleInfo;
+  video: VideoTrack[];
+  audio: AudioTrack[];
+  subtitles: SubtitleTrack[];
+}
+
+export interface ListTracksRequest {
+  service: string;
+  title_id: string;
+  wanted?: string; // e.g., "1x1,1x2,2x1-2x5"
+  season?: number;
+  episode?: number;
+  profile?: string;
+  proxy?: string;
+  no_proxy?: boolean;
+}
+
+export interface ListTracksResponse {
+  // Single title (movie or single episode)
+  title?: TitleInfo;
+  video?: VideoTrack[];
+  audio?: AudioTrack[];
+  subtitles?: SubtitleTrack[];
+  // Multiple episodes
+  episodes?: EpisodeTracksInfo[];
+  unavailable_episodes?: string[];
+}
+
+// Download types
 export interface DownloadRequest {
   service: string;
   url: string;
@@ -74,26 +121,23 @@ export interface DownloadRequest {
   s_lang?: string;
   tmdb_id?: string;
   proxy?: string;
-  episodes?: {
-    mode: 'all' | 'season' | 'specific';
-    season?: number;
-    list?: number[];
-  };
+  wanted?: string; // For episodes: "1x1,1x2,2x1-2x5"
   profile?: string;
 }
 
 export interface DownloadResponse {
   job_id: string;
-  status: 'queued' | 'downloading' | 'completed' | 'failed' | 'cancelled';
-  command: string;
-  queue_position?: number;
+  status: string;
+  created_time: string;
 }
 
 export interface DownloadJob {
   job_id: string;
   service: string;
-  title: string;
-  status: 'queued' | 'downloading' | 'completed' | 'failed' | 'cancelled';
+  title_id: string;
+  title?: string; // Compatibility field - may not be in API response
+  status: string;
+  created_time: string;
   progress?: number;
   current_track?: string;
   speed?: string;
@@ -105,10 +149,45 @@ export interface DownloadJob {
   error_message?: string;
 }
 
+export interface DownloadJobsResponse {
+  jobs: DownloadJob[];
+}
+
+// Compatibility aliases for existing code
+export type ServiceMatch = any; // Deprecated - no longer used
+export type TrackInfo = VideoTrack | AudioTrack | SubtitleTrack;
+export interface EpisodeInfo {
+  season: number;
+  episode: number;
+  title?: string;
+  video_tracks: VideoTrack[];
+  audio_tracks: AudioTrack[];
+  subtitle_tracks: SubtitleTrack[];
+}
+export interface TrackListingResponse extends ListTracksResponse {
+  episodes?: EpisodeInfo[];
+}
 export interface DownloadQueueResponse {
   active: DownloadJob | null;
   queued: DownloadJob[];
   completed: DownloadJob[];
+}
+
+// Deprecated types for settings/config pages (no longer supported by API)
+export interface APIConfig {
+  [key: string]: any;
+}
+export interface ServiceCredentials {
+  username?: string;
+  password?: string;
+  email?: string;
+  has_cookies?: boolean;
+  cookie_file?: string;
+}
+export interface CredentialUpdateRequest {
+  service: string;
+  username?: string;
+  password?: string;
 }
 
 export interface WebSocketMessage {
@@ -119,86 +198,6 @@ export interface WebSocketMessage {
   data?: any;
   error_code?: string;
   message?: string;
-}
-
-// Configuration types
-export interface APIConfig {
-  host: string;
-  port: number;
-  workers: number;
-  download_path: string;
-  max_concurrent_downloads: number;
-  download_queue_size: number;
-  websocket: {
-    ping_interval: number;
-    max_connections: number;
-    reconnect_attempts: number;
-  };
-  cache: {
-    track_list_ttl: number;
-    service_check_ttl: number;
-    api_response_ttl: number;
-    database_path: string;
-  };
-  cors: {
-    enabled: boolean;
-    origins: string[];
-  };
-  logging: {
-    level: string;
-    file: string;
-    max_size: number;
-    backup_count: number;
-  };
-}
-
-export interface ConfigResponse {
-  api: APIConfig;
-  services: {
-    available: string[];
-    configured: string[];
-  };
-  profiles: string[];
-}
-
-export interface ConfigUpdateRequest {
-  api?: Partial<APIConfig>;
-}
-
-export interface ConfigUpdateResponse {
-  message: string;
-  updated_fields: string[];
-}
-
-// Profile and credential types
-export interface ServiceCredentials {
-  username?: string;
-  password?: string;
-  email?: string;
-  has_cookies: boolean;
-  cookie_file?: string;
-}
-
-export interface ProfileInfo {
-  name: string;
-  is_active: boolean;
-  services: Record<string, ServiceCredentials>;
-}
-
-export interface ProfileListResponse {
-  profiles: ProfileInfo[];
-}
-
-export interface CredentialUpdateRequest {
-  service: string;
-  username?: string;
-  password?: string;
-}
-
-export interface CredentialUpdateResponse {
-  message: string;
-  service: string;
-  profile: string;
 }
 
 /**
@@ -234,22 +233,31 @@ export class UnshackleApiClient {
   private async request<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     endpoint: string,
-    data?: any
+    data?: any,
+    customTimeout?: number
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     console.log(`[UnshackleApiClient] Making ${method} request to:`, url);
     console.log(`[UnshackleApiClient] Request data:`, data);
-    
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutMs = customTimeout ?? this.timeout;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      };
+
+      // Add API key authentication if configured
+      if (API_CONFIG.apiKey) {
+        headers['X-API-Key'] = API_CONFIG.apiKey;
+      }
+
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers,
         body: data ? JSON.stringify(data) : undefined,
         signal: controller.signal,
       });
@@ -269,6 +277,8 @@ export class UnshackleApiClient {
             errorMessage = errorData.error.message || errorMessage;
             errorCode = errorData.error.code || errorCode;
             recoverable = errorData.error.recoverable || false;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
           }
         } catch {
           // If we can't parse the error response, use the default message
@@ -283,15 +293,15 @@ export class UnshackleApiClient {
     } catch (error) {
       clearTimeout(timeoutId);
       console.error(`[UnshackleApiClient] Request failed:`, error);
-      
+
       if (error instanceof UnshackleApiError) {
         throw error;
       }
-      
+
       if (error instanceof DOMException && error.name === 'AbortError') {
         throw new UnshackleApiError('Request timeout', 408, 'TIMEOUT');
       }
-      
+
       throw new UnshackleApiError(
         error instanceof Error ? error.message : 'Unknown error',
         0,
@@ -301,205 +311,99 @@ export class UnshackleApiClient {
   }
 
   /**
-   * Check which Unshackle services support the provided streaming URLs.
-   */
-  async checkAvailability(urls: string[]): Promise<ServiceAvailabilityResponse> {
-    console.log('[UnshackleApiClient] checkAvailability called with URLs:', urls);
-    console.log('[UnshackleApiClient] Base URL:', this.baseUrl);
-    
-    const result = await this.request<ServiceAvailabilityResponse>('POST', '/availability/check', {
-      streaming_urls: urls,
-    });
-    
-    console.log('[UnshackleApiClient] checkAvailability result:', result);
-    return result;
-  }
-
-  /**
    * List all available Unshackle services.
    */
-  async listServices(): Promise<{ services: any[] }> {
-    return this.request<{ services: any[] }>('GET', '/availability/services');
+  async getServices(): Promise<ServicesResponse> {
+    return this.request<ServicesResponse>('GET', '/services');
   }
 
   /**
-   * Get detailed information about a specific service.
+   * List titles for a service and title ID.
    */
-  async getServiceInfo(serviceTag: string): Promise<any> {
-    return this.request<any>('GET', `/availability/services/${serviceTag}`);
+  async listTitles(request: ListTitlesRequest): Promise<ListTitlesResponse> {
+    return this.request<ListTitlesResponse>('POST', '/list-titles', request);
   }
 
   /**
    * List available tracks for content.
+   * Note: This operation can take 2-5 minutes for some services.
    */
-  async listTracks(request: TrackListingRequest): Promise<TrackListingResponse> {
-    return this.request<TrackListingResponse>('POST', '/tracks/list', request);
-  }
-
-  /**
-   * Get track listing cache statistics.
-   */
-  async getTrackCacheStats(): Promise<{ total_entries: number; valid_entries: number; expired_entries: number }> {
-    return this.request('GET', '/tracks/cache/stats');
-  }
-
-  /**
-   * Clear the track listing cache.
-   */
-  async clearTrackCache(): Promise<{ message: string }> {
-    return this.request('DELETE', '/tracks/cache/clear');
+  async listTracks(request: ListTracksRequest): Promise<ListTracksResponse> {
+    // Use the default 5-minute timeout (already configured in API_CONFIG)
+    return this.request<ListTracksResponse>('POST', '/list-tracks', request);
   }
 
   /**
    * Start a new download job.
    */
   async startDownload(request: DownloadRequest): Promise<DownloadResponse> {
-    return this.request<DownloadResponse>('POST', '/downloads/start', request);
+    return this.request<DownloadResponse>('POST', '/download', request);
   }
 
   /**
-   * Get the current download queue status.
+   * Get all download jobs.
+   */
+  async getDownloadJobs(): Promise<DownloadJobsResponse> {
+    return this.request<DownloadJobsResponse>('GET', '/download/jobs');
+  }
+
+  /**
+   * Get the current download queue status (compatibility wrapper).
    */
   async getDownloadQueue(): Promise<DownloadQueueResponse> {
-    return this.request<DownloadQueueResponse>('GET', '/downloads/queue');
+    const response = await this.getDownloadJobs();
+    // TODO: The new API doesn't separate active/queued/completed
+    // For now, return a compatible structure
+    return {
+      active: response.jobs.find(j => j.status === 'downloading') || null,
+      queued: response.jobs.filter(j => j.status === 'queued'),
+      completed: response.jobs.filter(j => ['completed', 'failed', 'cancelled'].includes(j.status)),
+    };
   }
 
   /**
    * Get status of a specific download job.
    */
   async getJobStatus(jobId: string): Promise<DownloadJob> {
-    return this.request<DownloadJob>('GET', `/downloads/jobs/${jobId}`);
+    return this.request<DownloadJob>('GET', `/download/jobs/${jobId}`);
   }
 
   /**
    * Cancel a download job.
    */
-  async cancelJob(jobId: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>('POST', `/downloads/jobs/${jobId}/cancel`);
+  async cancelJob(jobId: string): Promise<{ message: string; status: string }> {
+    return this.request<{ message: string; status: string }>('DELETE', `/download/jobs/${jobId}`);
   }
 
   /**
-   * Clear all completed and failed jobs from history.
+   * Clear all completed and failed jobs from history (not supported by new API).
    */
   async clearCompletedJobs(): Promise<{ message: string }> {
-    return this.request<{ message: string }>('DELETE', '/downloads/jobs/completed');
+    // The new API doesn't have this endpoint yet
+    throw new UnshackleApiError(
+      'clearCompletedJobs is not supported by the current API',
+      501,
+      'NOT_IMPLEMENTED'
+    );
+  }
+
+  /**
+   * Deprecated: Check which Unshackle services support the provided streaming URLs.
+   * This functionality should now be handled by matching service regex patterns.
+   */
+  async checkAvailability(urls: string[]): Promise<any> {
+    throw new UnshackleApiError(
+      'checkAvailability is deprecated - use getServices() and match URLs manually',
+      501,
+      'DEPRECATED'
+    );
   }
 
   /**
    * Check if the API is healthy and accessible.
    */
-  async healthCheck(): Promise<{ status: string; timestamp: string }> {
-    // Health endpoint is at root level, not under /api/v1
-    const url = this.baseUrl.replace('/api/v1', '') + '/health';
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new UnshackleApiError(`Health check failed: ${response.statusText}`, response.status);
-      }
-
-      return await response.json();
-    } catch (error) {
-      clearTimeout(timeoutId);
-      
-      if (error instanceof UnshackleApiError) {
-        throw error;
-      }
-      
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new UnshackleApiError('Health check timeout', 408, 'TIMEOUT');
-      }
-      
-      throw new UnshackleApiError(
-        error instanceof Error ? error.message : 'Health check failed',
-        0,
-        'NETWORK_ERROR'
-      );
-    }
-  }
-
-  // Configuration Management
-
-  /**
-   * Get current configuration.
-   */
-  async getConfig(): Promise<ConfigResponse> {
-    return this.request<ConfigResponse>('GET', '/config');
-  }
-
-  /**
-   * Update configuration settings.
-   */
-  async updateConfig(config: ConfigUpdateRequest): Promise<ConfigUpdateResponse> {
-    return this.request<ConfigUpdateResponse>('PUT', '/config', config);
-  }
-
-  /**
-   * Get configuration schema for validation.
-   */
-  async getConfigSchema(): Promise<Record<string, any>> {
-    return this.request<Record<string, any>>('GET', '/config/schema');
-  }
-
-  // Profile Management
-
-  /**
-   * List all available profiles.
-   */
-  async getProfiles(): Promise<ProfileListResponse> {
-    return this.request<ProfileListResponse>('GET', '/profiles');
-  }
-
-  /**
-   * Activate a specific profile.
-   */
-  async activateProfile(profileName: string): Promise<{ message: string; profile: string }> {
-    return this.request<{ message: string; profile: string }>('POST', `/profiles/${profileName}/activate`);
-  }
-
-  /**
-   * Update credentials for a service in a profile.
-   */
-  async updateCredentials(
-    profileName: string, 
-    credentials: CredentialUpdateRequest
-  ): Promise<CredentialUpdateResponse> {
-    return this.request<CredentialUpdateResponse>('PUT', `/profiles/${profileName}/credentials`, credentials);
-  }
-
-  /**
-   * Get credentials for a specific service.
-   */
-  async getServiceCredentials(profileName: string, service: string): Promise<{
-    service: string;
-    profile: string;
-    has_username: boolean;
-    has_password: boolean;
-    has_cookies: boolean;
-    username?: string;
-  }> {
-    return this.request('GET', `/profiles/${profileName}/credentials/${service}`);
-  }
-
-  /**
-   * Remove credentials for a specific service.
-   */
-  async removeServiceCredentials(profileName: string, service: string): Promise<{
-    message: string;
-    service: string;
-    profile: string;
-  }> {
-    return this.request('DELETE', `/profiles/${profileName}/credentials/${service}`);
+  async healthCheck(): Promise<{ status: string; version: string }> {
+    return this.request<{ status: string; version: string }>('GET', '/health');
   }
 }
 
@@ -543,7 +447,7 @@ export class UnshackleWebSocketClient {
           resolve();
         };
 
-        this.ws.onmessage = (event) => {
+        this.ws.onmessage = event => {
           try {
             const message: WebSocketMessage = JSON.parse(event.data);
             this.handleMessage(message);
@@ -552,18 +456,21 @@ export class UnshackleWebSocketClient {
           }
         };
 
-        this.ws.onclose = (event) => {
+        this.ws.onclose = event => {
           console.log(`[UnshackleWS] Connection closed: ${event.code} ${event.reason}`);
           this.ws = null;
           this.isConnecting = false;
           this.connectionPromise = null;
-          
-          if (!event.wasClean && this.reconnectAttempts < API_CONFIG.websocket.maxReconnectAttempts) {
+
+          if (
+            !event.wasClean &&
+            this.reconnectAttempts < API_CONFIG.websocket.maxReconnectAttempts
+          ) {
             this.scheduleReconnect();
           }
         };
 
-        this.ws.onerror = (error) => {
+        this.ws.onerror = error => {
           console.error('[UnshackleWS] WebSocket error:', error);
           this.isConnecting = false;
           this.connectionPromise = null;
@@ -594,7 +501,7 @@ export class UnshackleWebSocketClient {
       this.ws.close(1000, 'Client disconnecting');
       this.ws = null;
     }
-    
+
     this.isConnecting = false;
     this.connectionPromise = null;
   }
@@ -694,7 +601,9 @@ export class UnshackleWebSocketClient {
    */
   private scheduleReconnect(): void {
     this.reconnectAttempts++;
-    console.log(`[UnshackleWS] Scheduling reconnect attempt ${this.reconnectAttempts}/${API_CONFIG.websocket.maxReconnectAttempts}`);
+    console.log(
+      `[UnshackleWS] Scheduling reconnect attempt ${this.reconnectAttempts}/${API_CONFIG.websocket.maxReconnectAttempts}`
+    );
 
     this.reconnectTimer = setTimeout(() => {
       this.connect().catch(error => {

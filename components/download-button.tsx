@@ -25,12 +25,12 @@ interface DownloadButtonProps {
   debugMode?: boolean;
 }
 
-export function DownloadButton({ 
-  offer, 
-  className = '', 
+export function DownloadButton({
+  offer,
+  className = '',
   size = 'sm',
   onDownloadClick,
-  debugMode = process.env.NODE_ENV === 'development'
+  debugMode = process.env.NODE_ENV === 'development',
 }: DownloadButtonProps) {
   const { checkAvailability, isLoading, error } = useServiceAvailability();
   const [serviceMatch, setServiceMatch] = useState<any>(null);
@@ -42,18 +42,18 @@ export function DownloadButton({
     const checkUnshackleSupport = async () => {
       // Clean URL by removing query parameters for better matching
       const cleanUrl = offer.standardWebURL.split('?')[0];
-      
+
       console.log('[DownloadButton] Original URL:', offer.standardWebURL);
       console.log('[DownloadButton] Clean URL:', cleanUrl);
       console.log('[DownloadButton] Service:', offer.package?.clearName);
-      
+
       try {
         const matches = await checkAvailability([cleanUrl]);
         console.log('[DownloadButton] API response:', matches);
-        
+
         const match = matches.find(m => m.url === cleanUrl);
         console.log('[DownloadButton] Service match:', match);
-        
+
         setServiceMatch(match);
         setHasChecked(true);
       } catch (err) {
@@ -73,15 +73,15 @@ export function DownloadButton({
         service: serviceMatch.service,
         country: offer.country,
         url: offer.standardWebURL,
-        serviceName: offer.package?.clearName
+        serviceName: offer.package?.clearName,
       });
-      
+
       // Ensure country is preserved in the offer object
       const offerWithCountry = {
         ...offer,
-        country: offer.country || 'us' // Fallback to 'us' if country is missing
+        country: offer.country || 'us', // Fallback to 'us' if country is missing
       };
-      
+
       onDownloadClick(offerWithCountry, serviceMatch);
     }
   };
@@ -89,11 +89,15 @@ export function DownloadButton({
   // Don't show button if we haven't checked yet or if checking failed
   if (!hasChecked || error) {
     console.log('[DownloadButton] Not showing button - hasChecked:', hasChecked, 'error:', error);
-    
+
     if (debugMode && hasChecked) {
       return (
         <div className={`flex items-center gap-2 ${className}`}>
-          <Button variant="outline" disabled className="h-7 px-2 text-xs border-red-200 text-red-600">
+          <Button
+            variant="outline"
+            disabled
+            className="h-7 px-2 text-xs border-red-200 text-red-600"
+          >
             <AlertCircle className="h-3 w-3" />
             <span className="ml-1">Check Failed</span>
           </Button>
@@ -103,25 +107,29 @@ export function DownloadButton({
         </div>
       );
     }
-    
+
     return null;
   }
 
   // Don't show button if service is not supported
   if (!serviceMatch?.supported) {
     console.log('[DownloadButton] Not showing button - service not supported:', serviceMatch);
-    
+
     if (debugMode) {
       return (
         <div className={`flex items-center gap-2 ${className}`}>
-          <Button variant="outline" disabled className="h-7 px-2 text-xs border-gray-200 text-gray-600">
+          <Button
+            variant="outline"
+            disabled
+            className="h-7 px-2 text-xs border-gray-200 text-gray-600"
+          >
             <AlertCircle className="h-3 w-3" />
             <span className="ml-1">No Match</span>
           </Button>
         </div>
       );
     }
-    
+
     return null;
   }
 
@@ -130,40 +138,29 @@ export function DownloadButton({
   const buttonSize = {
     sm: 'h-7 px-2 text-xs',
     md: 'h-8 px-3 text-sm',
-    lg: 'h-9 px-4 text-sm'
+    lg: 'h-9 px-4 text-sm',
   }[size];
 
   const iconSize = {
     sm: 'h-3 w-3',
     md: 'h-4 w-4',
-    lg: 'h-4 w-4'
+    lg: 'h-4 w-4',
   }[size];
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <Button
-        onClick={handleDownload}
-        disabled={isLoading}
-        variant="outline"
-        className={`${buttonSize} text-green-600 border-green-200 hover:bg-green-50 hover:border-green-300`}
-      >
-        {isLoading ? (
-          <Loader2 className={`${iconSize} animate-spin`} />
-        ) : (
-          <Download className={iconSize} />
-        )}
-        <span className="ml-1">Download</span>
-      </Button>
-      
-      {serviceMatch?.service && (
-        <Badge 
-          variant="outline" 
-          className="text-xs bg-green-50 text-green-700 border-green-200"
-        >
-          {serviceMatch.service}
-        </Badge>
+    <Button
+      onClick={handleDownload}
+      disabled={isLoading}
+      variant="outline"
+      className={`${buttonSize} text-green-600 border-green-200 hover:bg-green-50 hover:border-green-300 ${className}`}
+    >
+      {isLoading ? (
+        <Loader2 className={`${iconSize} animate-spin`} />
+      ) : (
+        <Download className={iconSize} />
       )}
-    </div>
+      <span className="ml-1">Download</span>
+    </Button>
   );
 }
 
@@ -176,10 +173,10 @@ interface DownloadAvailabilityProps {
   className?: string;
 }
 
-export function DownloadAvailability({ 
-  offers, 
-  onDownloadClick, 
-  className = '' 
+export function DownloadAvailability({
+  offers,
+  onDownloadClick,
+  className = '',
 }: DownloadAvailabilityProps) {
   const { checkAvailability, isLoading } = useServiceAvailability();
   const [availableServices, setAvailableServices] = useState<Record<string, any>>({});
@@ -190,9 +187,7 @@ export function DownloadAvailability({
 
     const checkAllOffers = async () => {
       try {
-        const urls = offers
-          .map(offer => offer.standardWebURL)
-          .filter(url => url); // Filter out empty URLs
+        const urls = offers.map(offer => offer.standardWebURL).filter(url => url); // Filter out empty URLs
 
         if (urls.length === 0) {
           setHasChecked(true);
@@ -200,12 +195,15 @@ export function DownloadAvailability({
         }
 
         const matches = await checkAvailability(urls);
-        const serviceMap = matches.reduce((acc, match) => {
-          if (match.supported) {
-            acc[match.url] = match;
-          }
-          return acc;
-        }, {} as Record<string, any>);
+        const serviceMap = matches.reduce(
+          (acc, match) => {
+            if (match.supported) {
+              acc[match.url] = match;
+            }
+            return acc;
+          },
+          {} as Record<string, any>
+        );
 
         setAvailableServices(serviceMap);
         setHasChecked(true);
@@ -245,7 +243,9 @@ export function DownloadAvailability({
         {availableCount} download source{availableCount !== 1 ? 's' : ''} available
       </span>
       <Badge variant="secondary" className="bg-green-100 text-green-800">
-        {Object.values(availableServices).map((service: any) => service.service).join(', ')}
+        {Object.values(availableServices)
+          .map((service: any) => service.service)
+          .join(', ')}
       </Badge>
     </div>
   );

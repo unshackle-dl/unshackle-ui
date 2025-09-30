@@ -965,7 +965,7 @@ export function TitleDetail({ result, onBack, className = '' }: TitleDetailProps
                         // Ensure the country code is properly attached to the offer
                         const offerWithCountry = {
                           ...offer,
-                          country: country.toLowerCase() // Normalize to lowercase 2-letter country code
+                          country: country.toLowerCase(), // Normalize to lowercase 2-letter country code
                         };
 
                         return (
@@ -999,7 +999,9 @@ export function TitleDetail({ result, onBack, className = '' }: TitleDetailProps
                             </TableCell>
                             <TableCell>
                               <Badge
-                                variant={offer.monetizationType === 'FREE' ? 'secondary' : 'default'}
+                                variant={
+                                  offer.monetizationType === 'FREE' ? 'secondary' : 'default'
+                                }
                               >
                                 {offer.monetizationType}
                               </Badge>
@@ -1024,7 +1026,7 @@ export function TitleDetail({ result, onBack, className = '' }: TitleDetailProps
                             <TableCell>{renderLanguages(offer.subtitleLanguages)}</TableCell>
                             <TableCell>{renderLanguages(offer.audioLanguages)}</TableCell>
                             <TableCell>
-                              <DownloadButton 
+                              <DownloadButton
                                 offer={offerWithCountry}
                                 onDownloadClick={handleDownloadClick}
                               />
@@ -1086,6 +1088,7 @@ export function TitleDetail({ result, onBack, className = '' }: TitleDetailProps
             tmdbId: result.tmdbId,
             imdbId: result.imdbId,
           }}
+          simklEpisodes={detailData?.simklEpisodes}
         />
       )}
     </div>
