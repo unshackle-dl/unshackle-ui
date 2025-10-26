@@ -8,6 +8,9 @@ A modern web interface for [Unshackle](https://github.com/unshackle-dl/unshackle
   <sup><em>Web Interface for Content Discovery and Download Management</em></sup>
 </p>
 
+<img width="1710" height="944" alt="image" src="https://github.com/user-attachments/assets/e085884b-dbed-494d-9512-556223a3c810" />
+
+
 ## Overview
 
 Unshackle UI provides a modern, responsive web interface for managing your Unshackle CLI operations. Built with a search-first approach, it enables easy content discovery, multi-service searching, and real-time download management.
