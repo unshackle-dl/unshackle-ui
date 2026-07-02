@@ -1,0 +1,13 @@
+@layer base {
+	html {
+		@apply scrollbar-gutter-stable;
+	}
+
+	* {
+		@apply scrollbar-thin scrollbar-thumb-neutral-400/50 scrollbar-track-transparent;
+	}
+
+	.dark * {
+		@apply scrollbar-thumb-neutral-600/60;
+	}
+}

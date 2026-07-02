@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+@import './styles/fonts.css';
+@import './styles/scrollbar.css';
+@import './styles/transitions.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+	--font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'Geist Mono', ui-monospace, monospace;
+
+	/* Accent colors using CSS variables set by the accent store at runtime */
+	--color-accent-50: var(--accent-50);
+	--color-accent-100: var(--accent-100);
+	--color-accent-200: var(--accent-200);
+	--color-accent-300: var(--accent-300);
+	--color-accent-400: var(--accent-400);
+	--color-accent-500: var(--accent-500);
+	--color-accent-600: var(--accent-600);
+	--color-accent-700: var(--accent-700);
+	--color-accent-800: var(--accent-800);
+	--color-accent-900: var(--accent-900);
+	--color-accent-950: var(--accent-950);
+}
+
+@layer base {
+	* {
+		font-family: var(--font-sans);
+	}
+
+	/* Default accent (blue) - overridden at runtime by the accent store */
+	:root {
+		--accent-50: #eff6ff;
+		--accent-100: #dbeafe;
+		--accent-200: #bfdbfe;
+		--accent-300: #93c5fd;
+		--accent-400: #60a5fa;
+		--accent-500: #3b82f6;
+		--accent-600: #2563eb;
+		--accent-700: #1d4ed8;
+		--accent-800: #1e40af;
+		--accent-900: #1e3a8a;
+		--accent-950: #172554;
+	}
+
+	html {
+		@apply bg-neutral-50 dark:bg-neutral-900;
+	}
+}

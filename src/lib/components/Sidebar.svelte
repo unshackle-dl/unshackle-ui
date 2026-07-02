@@ -1,0 +1,70 @@
+<script lang="ts">
+	import { page } from '$app/state';
+	import AccentPicker from './AccentPicker.svelte';
+	import Icon, { type IconName } from './Icon.svelte';
+	import ThemeToggle from './ThemeToggle.svelte';
+
+	const nav: { href: string; label: string; icon: IconName }[] = [
+		{ href: '/', label: 'Browse', icon: 'search' },
+		{ href: '/downloads', label: 'Downloads', icon: 'download' },
+		{ href: '/history', label: 'History', icon: 'history' },
+		{ href: '/settings', label: 'Settings', icon: 'settings' }
+	];
+
+	function active(href: string): boolean {
+		const path = page.url.pathname;
+		return href === '/' ? path === '/' || path.startsWith('/title') : path.startsWith(href);
+	}
+</script>
+
+<aside
+	class="flex w-60 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
+>
+	<div class="px-5 py-5">
+		<div class="flex items-center gap-2">
+			<!-- Material Symbols: no_encryption -->
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				width="26"
+				height="26"
+				viewBox="0 -960 960 960"
+				fill="currentColor"
+				class="text-accent-600 dark:text-accent-500"
+				aria-hidden="true"
+			>
+				<path
+					d="m800-274-80-80v-206H514l-80-80h166v-80q0-50-34.5-85T481-840q-50 0-84 34.5T363-720v9l-73-73q22-61 75-98.5T481-920q83 0 141 58.5T680-720v80h40q33 0 56.5 23.5T800-560v286Zm20 246-62-62q-11 5-20 7.5T720-80H240q-33 0-56.5-23.5T160-160v-400q0-25 14.5-46t37.5-30L28-820l56-56L876-84l-56 56ZM686-160 539-309q-11 11-25.5 17t-31.5 6q-33 0-56.5-23.5T402-366q0-17 6-31.5t17-25.5L286-560h-46v400h446ZM486-360Zm131-97Z"
+				/>
+			</svg>
+			<span class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-white"
+				>unshackle-ui</span
+			>
+		</div>
+	</div>
+
+	<nav class="flex-1 space-y-1 px-3 py-2">
+		{#each nav as item (item.href)}
+			<a
+				href={item.href}
+				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors {active(
+					item.href
+				)
+					? 'bg-accent-50 text-accent-700 dark:bg-accent-500/10 dark:text-accent-300'
+					: 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'}"
+			>
+				<Icon name={item.icon} size={18} />
+				{item.label}
+			</a>
+		{/each}
+	</nav>
+
+	<div
+		class="flex items-center justify-between border-t border-neutral-200 px-5 py-3 dark:border-neutral-800"
+	>
+		<div class="font-mono text-xs text-neutral-400 dark:text-neutral-500">v{__APP_VERSION__}</div>
+		<div class="flex shrink-0 items-center gap-2">
+			<ThemeToggle />
+			<AccentPicker />
+		</div>
+	</div>
+</aside>
