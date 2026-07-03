@@ -68,14 +68,30 @@ export const api = {
 
 	services: () => request<{ services: Service[] }>('/api/services').then((r) => r.services),
 
-	search: (body: { service: string; query: string; profile?: string }) =>
-		post<SearchResponse>('/api/search', body),
+	search: (body: {
+		service: string;
+		query: string;
+		profile?: string;
+		proxy?: string;
+		no_proxy?: boolean;
+	}) => post<SearchResponse>('/api/search', body),
 
-	listTitles: (body: { service: string; title_id: string; profile?: string }) =>
-		post<{ titles: Title[] }>('/api/list-titles', body).then((r) => r.titles),
+	listTitles: (body: {
+		service: string;
+		title_id: string;
+		profile?: string;
+		proxy?: string;
+		no_proxy?: boolean;
+	}) => post<{ titles: Title[] }>('/api/list-titles', body).then((r) => r.titles),
 
-	listTracks: (body: { service: string; title_id: string; wanted?: string; profile?: string }) =>
-		post<Tracks>('/api/list-tracks', body),
+	listTracks: (body: {
+		service: string;
+		title_id: string;
+		wanted?: string;
+		profile?: string;
+		proxy?: string;
+		no_proxy?: boolean;
+	}) => post<Tracks>('/api/list-tracks', body),
 
 	download: (body: DownloadRequest) => post<DownloadJobRef>('/api/download', body),
 

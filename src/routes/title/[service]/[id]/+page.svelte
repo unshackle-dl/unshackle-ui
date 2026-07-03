@@ -51,7 +51,14 @@
 	let rangeSel = $state<string[]>([]);
 	let audioSel = $state<string[]>([]);
 	let subSel = $state<string[]>([]);
-	let advanced = $state(untrack(() => ({ ...blankAdvanced(), profile: data.profile })));
+	let advanced = $state(
+		untrack(() => ({
+			...blankAdvanced(),
+			profile: data.profile,
+			proxy: data.proxy,
+			no_proxy: data.noProxy
+		}))
+	);
 	let starting = $state(false);
 	let startError = $state<string | null>(null);
 
@@ -128,7 +135,9 @@
 						service: data.service,
 						title_id: data.titleId,
 						wanted: wantedCode(t) ?? undefined,
-						profile: String(advanced.profile).trim() || undefined
+						profile: String(advanced.profile).trim() || undefined,
+						proxy: String(advanced.proxy).trim() || undefined,
+						no_proxy: advanced.no_proxy === true || undefined
 					})
 				}))
 			);
