@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { ADVANCED_FIELDS, blankAdvanced, buildAdvanced, episodeProgress } from './download.ts';
+import {
+	ADVANCED_FIELDS,
+	blankAdvanced,
+	buildAdvanced,
+	buildDownloadRequest,
+	episodeProgress,
+	type Selectors
+} from './download.ts';
+import type { Field } from './options.ts';
 
 // Keys the backend honors (DEFAULT_DOWNLOAD_PARAMS in unshackle/core/api/handlers.py),
 // minus the primary selectors (quality/range/wanted/a_lang/s_lang/bitrate ranges) the page handles.
@@ -100,6 +108,53 @@ test('buildAdvanced ignores non-numeric numbers', () => {
 	const v = blankAdvanced();
 	v.workers = 'abc';
 	assert.deepEqual(buildAdvanced(v), {});
+});
+
+const BASE = { service: 'ATVP', title_id: 'x' };
+const noSel = (): Selectors => ({
+	wanted: [],
+	quality: [],
+	vcodec: [],
+	range: [],
+	a_lang: [],
+	s_lang: []
+});
+
+test('buildDownloadRequest omits every empty selector', () => {
+	assert.deepEqual(buildDownloadRequest(BASE, noSel(), blankAdvanced(), [], {}), {
+		service: 'ATVP',
+		title_id: 'x'
+	});
+});
+
+test('buildDownloadRequest coerces quality strings to numbers', () => {
+	const r = buildDownloadRequest(BASE, { ...noSel(), quality: ['1080', '720'] }, blankAdvanced(), [], {});
+	assert.deepEqual(r.quality, [1080, 720]);
+});
+
+test('buildDownloadRequest passes wanted through unchanged', () => {
+	const r = buildDownloadRequest(BASE, { ...noSel(), wanted: ['S01E01', 'S01E02'] }, blankAdvanced(), [], {});
+	assert.deepEqual(r.wanted, ['S01E01', 'S01E02']);
+});
+
+test('buildDownloadRequest omits unset vcodec/range/a_lang/s_lang', () => {
+	const r = buildDownloadRequest(BASE, noSel(), blankAdvanced(), [], {});
+	assert.ok(!('vcodec' in r) && !('range' in r) && !('a_lang' in r) && !('s_lang' in r));
+});
+
+test('buildDownloadRequest folds in a set advanced value', () => {
+	const adv = blankAdvanced();
+	adv.vbitrate = '8000';
+	const r = buildDownloadRequest(BASE, { ...noSel(), quality: ['1080'] }, adv, [], {});
+	assert.deepEqual(r, { service: 'ATVP', title_id: 'x', quality: [1080], vbitrate: 8000 });
+});
+
+test('buildDownloadRequest lets service values win a key collision (last spread)', () => {
+	const svcFields: Field[] = [{ key: 'vbitrate', type: 'int', label: 'vb' }];
+	const adv = blankAdvanced();
+	adv.vbitrate = '8000';
+	const r = buildDownloadRequest(BASE, noSel(), adv, svcFields, { vbitrate: '5000' });
+	assert.equal(r.vbitrate, 5000);
 });
 
 test('episodeProgress marks done episodes from output files', () => {

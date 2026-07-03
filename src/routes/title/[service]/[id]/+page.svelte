@@ -9,8 +9,8 @@
 	import ChipSelect from '$lib/components/ChipSelect.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import OptionForm from '$lib/components/OptionForm.svelte';
-	import { ADVANCED_FIELDS, blankAdvanced, buildAdvanced } from '$lib/download';
-	import { blankValues, coerce, serviceFields, type Field } from '$lib/options';
+	import { ADVANCED_FIELDS, blankAdvanced, buildDownloadRequest } from '$lib/download';
+	import { blankValues, serviceFields, type Field } from '$lib/options';
 	import { getProfiles } from '$lib/profiles';
 	import { isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
 
@@ -166,18 +166,22 @@
 		starting = true;
 		startError = null;
 		try {
-			await api.download({
-				service: data.service,
-				title_id: data.titleId,
-				wanted: epSel.length ? epSel : undefined,
-				quality: qualitySel.length ? qualitySel.map(Number) : undefined,
-				vcodec: codecSel.length ? codecSel : undefined,
-				range: rangeSel.length ? rangeSel : undefined,
-				a_lang: audioSel.length ? audioSel : undefined,
-				s_lang: subSel.length ? subSel : undefined,
-				...buildAdvanced(advanced),
-				...coerce(svcFields, svcValues)
-			});
+			await api.download(
+				buildDownloadRequest(
+					{ service: data.service, title_id: data.titleId },
+					{
+						wanted: epSel,
+						quality: qualitySel,
+						vcodec: codecSel,
+						range: rangeSel,
+						a_lang: audioSel,
+						s_lang: subSel
+					},
+					advanced,
+					svcFields,
+					svcValues
+				)
+			);
 			await goto('/downloads');
 		} catch (e) {
 			startError = errorMessage(e);

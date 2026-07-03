@@ -119,6 +119,36 @@ export const blankAdvanced = (): Record<string, string | boolean> => blankValues
 export const buildAdvanced = (values: Record<string, string | boolean>): Partial<DownloadRequest> =>
 	coerce(ADVANCED_FIELDS, values);
 
+export interface Selectors {
+	wanted: string[]; // episode codes (epSel)
+	quality: string[]; // height strings from combined.heights
+	vcodec: string[];
+	range: string[];
+	a_lang: string[];
+	s_lang: string[];
+}
+
+// Empty selection means omit the filter. Spread order (selectors, advanced, service) is last-wins.
+export function buildDownloadRequest(
+	base: { service: string; title_id: string },
+	sel: Selectors,
+	advancedValues: Record<string, string | boolean>,
+	svcFields: Field[],
+	svcValues: Record<string, string | boolean>
+): DownloadRequest {
+	return {
+		...base,
+		...(sel.wanted.length ? { wanted: sel.wanted } : {}),
+		...(sel.quality.length ? { quality: sel.quality.map(Number) } : {}),
+		...(sel.vcodec.length ? { vcodec: sel.vcodec } : {}),
+		...(sel.range.length ? { range: sel.range } : {}),
+		...(sel.a_lang.length ? { a_lang: sel.a_lang } : {}),
+		...(sel.s_lang.length ? { s_lang: sel.s_lang } : {}),
+		...buildAdvanced(advancedValues),
+		...coerce(svcFields, svcValues)
+	};
+}
+
 // An episode is done once its SxxEyy code appears in an output filename.
 export function episodeProgress(
 	wanted: string[] | undefined,
