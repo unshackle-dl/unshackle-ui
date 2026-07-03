@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { api, ApiError } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { HistoryEntry } from '$lib/api/types';
+	import { isKeysOnly, tone } from '$lib/job';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -26,7 +27,7 @@
 		expanded = next;
 	}
 
-	const keysOnly = (e: HistoryEntry) => !!e.parameters?.skip_dl;
+	const keysOnly = (e: HistoryEntry) => isKeysOnly(e.parameters);
 	const toArr = (v: unknown): string[] =>
 		Array.isArray(v) ? v.map(String) : v == null || v === '' ? [] : [String(v)];
 
@@ -53,7 +54,7 @@
 				seenServices = [...new Set([...seenServices, ...fresh])].sort();
 			error = null;
 		} catch (e) {
-			error = e instanceof ApiError ? e.message : String(e);
+			error = errorMessage(e);
 		} finally {
 			loading = false;
 		}
@@ -79,7 +80,7 @@
 			await api.deleteHistory(id);
 			entries = entries?.filter((e) => e.job_id !== id) ?? null;
 		} catch (e) {
-			error = e instanceof ApiError ? e.message : String(e);
+			error = errorMessage(e);
 		} finally {
 			const next = new Set(removing);
 			next.delete(id);
@@ -89,12 +90,6 @@
 
 	// More rows may exist when the server filled the current limit.
 	const maybeMore = $derived((entries?.length ?? 0) >= limit);
-
-	function tone(status: HistoryEntry['status']): 'green' | 'red' | 'neutral' {
-		if (status === 'completed') return 'green';
-		if (status === 'failed') return 'red';
-		return 'neutral';
-	}
 
 	function when(e: HistoryEntry): string {
 		const t = e.completed_time ?? e.created_time;
@@ -221,9 +216,7 @@
 				</button>
 
 				{#if expanded.has(e.job_id)}
-					<div
-						class="mt-3 space-y-2 border-t border-neutral-100 pt-3 dark:border-neutral-800"
-					>
+					<div class="mt-3 space-y-2 border-t border-neutral-100 pt-3 dark:border-neutral-800">
 						{@render chipRow('Type', [keysOnly(e) ? 'Keys only' : 'Full download'])}
 						{@render chipRow('Episodes', s.episodes.length ? s.episodes : ['Movie'])}
 						{@render chipRow('Quality', s.quality)}

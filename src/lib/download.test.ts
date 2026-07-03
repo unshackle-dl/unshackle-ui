@@ -55,7 +55,7 @@ const BACKEND_HONORED = new Set([
 ]);
 
 test('every advanced field maps to a backend-honored download param', () => {
-	const keys = ADVANCED_FIELDS.flatMap((g) => g.fields.map((f) => f.key));
+	const keys = ADVANCED_FIELDS.map((f) => f.key);
 	assert.deepEqual(
 		keys.filter((k) => !BACKEND_HONORED.has(k)),
 		[]

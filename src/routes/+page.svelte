@@ -2,7 +2,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { navigating } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { api, ApiError } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { SearchResult } from '$lib/api/types';
 	import { getProfiles } from '$lib/profiles';
 	import Badge from '$lib/components/Badge.svelte';
@@ -68,7 +68,7 @@
 			});
 			results = res.results;
 		} catch (err) {
-			error = err instanceof ApiError ? err.message : String(err);
+			error = errorMessage(err);
 			results = null;
 		} finally {
 			loading = false;
@@ -189,7 +189,9 @@
 			type="text"
 			list="geofence-{service}"
 			disabled={noProxy}
-			placeholder={geofence.length ? `Proxy / country (e.g. ${geofence[0]})` : 'Proxy URI or country'}
+			placeholder={geofence.length
+				? `Proxy / country (e.g. ${geofence[0]})`
+				: 'Proxy URI or country'}
 			title={geofence.length
 				? `Geofenced to: ${geofence.join(', ')}. Set a proxy URI or country code.`
 				: 'Set a proxy URI or country code.'}

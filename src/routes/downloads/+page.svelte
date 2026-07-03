@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import { api, ApiError } from '$lib/api/client';
+	import { api, ApiError, errorMessage } from '$lib/api/client';
 	import type { Job } from '$lib/api/types';
-	import { episodeProgress } from '$lib/download';
+	import { isFinished, isQueued, jobView } from '$lib/job';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -50,15 +50,6 @@
 		refresh();
 	}
 
-	const ACTIVE = ['queued', 'pending', 'running', 'downloading', 'processing', 'muxing'];
-	const isActive = (s: string) => ACTIVE.includes(s?.toLowerCase());
-	const isFinished = (s: string) => !isActive(s); // completed / failed / cancelled
-	const isRetryable = (s: string) =>
-		['failed', 'error', 'cancelled', 'canceled'].includes(s?.toLowerCase());
-	const isQueued = (s: string) => s?.toLowerCase() === 'queued';
-	// --skip-dl jobs pull keys only, no media, so reword "downloading" accordingly.
-	const keysOnly = (j: Job) => !!j.parameters?.skip_dl;
-
 	const clearable = $derived(jobs?.some((j) => isFinished(j.status)) ?? false);
 	const queuedCount = $derived(jobs?.filter((j) => isQueued(j.status)).length ?? 0);
 
@@ -67,18 +58,9 @@
 		try {
 			await api.clearFinishedJobs();
 		} catch (e) {
-			actionError = e instanceof ApiError ? e.message : String(e);
+			actionError = errorMessage(e);
 		}
 		await refresh();
-	}
-
-	function tone(status: string): 'neutral' | 'accent' | 'green' | 'amber' | 'red' {
-		const s = status?.toLowerCase();
-		if (s === 'completed' || s === 'done' || s === 'success') return 'green';
-		if (s === 'failed' || s === 'error') return 'red';
-		if (s === 'cancelled' || s === 'canceled') return 'neutral';
-		if (isActive(s)) return 'accent';
-		return 'amber';
 	}
 
 	async function refresh() {
@@ -99,7 +81,7 @@
 			error = null;
 		} catch (e) {
 			if (seq !== refreshSeq) return;
-			error = e instanceof ApiError ? e.message : String(e);
+			error = errorMessage(e);
 		}
 	}
 
@@ -110,8 +92,7 @@
 		try {
 			await fn();
 		} catch (e) {
-			if (!(e instanceof ApiError && e.status === 409))
-				actionError = e instanceof ApiError ? e.message : String(e);
+			if (!(e instanceof ApiError && e.status === 409)) actionError = errorMessage(e);
 		} finally {
 			const next = new Set(busy);
 			next.delete(id);
@@ -137,10 +118,6 @@
 		timer = setInterval(refresh, 2000);
 	});
 	onDestroy(() => clearInterval(timer));
-
-	function label(j: Job): string {
-		return j.title || j.title_id || j.job_id;
-	}
 </script>
 
 <div class="flex items-center justify-between">
@@ -266,39 +243,36 @@
 {:else if jobs}
 	<div class="mt-6 space-y-3">
 		{#each jobs as j (j.job_id)}
-			{@const ep = episodeProgress(j.parameters?.wanted, j.output_files)}
-			{@const current = isActive(j.status) ? (j.current_title ?? ep?.current ?? null) : null}
+			{@const v = jobView(j)}
 			<Card class="p-4">
 				<div class="flex items-start justify-between gap-4">
 					<div class="min-w-0 flex-1">
 						<div class="flex items-center gap-2">
-							<Badge tone={tone(j.status)}
-								>{keysOnly(j) && isActive(j.status) ? 'obtaining keys' : j.status}</Badge
-							>
+							<Badge tone={v.tone}>{v.statusLabel}</Badge>
 							<span class="truncate font-medium text-neutral-900 dark:text-neutral-100"
-								>{label(j)}</span
+								>{v.label}</span
 							>
 						</div>
 						<p class="mt-0.5 truncate font-mono text-xs text-neutral-400 dark:text-neutral-500">
 							{j.job_id}{#if j.service}{' · '}{j.service}{/if}
 						</p>
-						{#if j.error || j.error_message}
+						{#if v.error}
 							<p class="mt-1 text-sm text-red-600 dark:text-red-400">
-								{j.error || j.error_message}
+								{v.error}
 							</p>
-						{:else if tone(j.status) === 'green'}
+						{:else if v.done}
 							<p class="mt-1 text-sm text-green-600 dark:text-green-400">
-								{keysOnly(j) ? 'Keys obtained' : 'Done'}
+								{v.doneLabel}
 							</p>
-						{:else if j.phase || j.message}
+						{:else if v.message}
 							<p class="mt-1 text-sm text-neutral-600 capitalize dark:text-neutral-300">
-								{j.phase || j.message}
+								{v.message}
 							</p>
 						{/if}
 					</div>
 					<div class="flex shrink-0 items-center gap-2">
-						{#if isActive(j.status)}
-							{#if isQueued(j.status) && queuedCount > 1}
+						{#if v.active}
+							{#if v.queued && queuedCount > 1}
 								<Button
 									variant="secondary"
 									title="Move to front of queue"
@@ -320,7 +294,7 @@
 								Cancel
 							</Button>
 						{:else}
-							{#if isRetryable(j.status)}
+							{#if v.retryable}
 								<Button
 									variant="secondary"
 									onclick={() => retry(j.job_id)}
@@ -346,7 +320,7 @@
 					</div>
 				</div>
 
-				{#if tone(j.status) === 'red' && (j.error_code || j.error_details || j.worker_stderr)}
+				{#if v.tone === 'red' && (j.error_code || j.error_details || j.worker_stderr)}
 					<details
 						class="mt-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10"
 					>
@@ -377,7 +351,7 @@
 					</details>
 				{/if}
 
-				{#if tone(j.status) === 'green' && (j.skipped_subtitles?.length ?? 0) > 0}
+				{#if v.tone === 'green' && (j.skipped_subtitles?.length ?? 0) > 0}
 					{@const langs = [...new Set((j.skipped_subtitles ?? []).map((s) => s.language))]}
 					<p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
 						{j.skipped_subtitles?.length}
@@ -387,9 +361,9 @@
 					</p>
 				{/if}
 
-				{#if isActive(j.status)}
-					{@const muxing = (j.phase ?? '').toLowerCase() === 'muxing'}
-					{@const determinate = !muxing && typeof j.progress === 'number'}
+				{#if v.active}
+					{@const muxing = v.progress?.muxing ?? false}
+					{@const determinate = v.progress?.determinate ?? false}
 					<div class="mt-3">
 						<div class="h-2 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
 							<div
@@ -397,7 +371,7 @@
 									? 'transition-all duration-500'
 									: 'w-1/3'}"
 								class:indeterminate={!determinate}
-								style={determinate ? `width: ${Math.max(0, Math.min(100, j.progress ?? 0))}%` : ''}
+								style={determinate ? `width: ${v.progress?.percent ?? 0}%` : ''}
 							></div>
 						</div>
 						<div class="mt-1 flex justify-between text-xs text-neutral-400 dark:text-neutral-500">
@@ -405,7 +379,7 @@
 								>{muxing
 									? 'muxing…'
 									: determinate
-										? `${Math.round(j.progress ?? 0)}%`
+										? `${Math.round(v.progress?.percent ?? 0)}%`
 										: 'working…'}</span
 							>
 							<span>
@@ -415,7 +389,7 @@
 								{#if j.speed}· {j.speed}{/if}
 							</span>
 						</div>
-						{#if isActive(j.status) && (j.track_progress?.length ?? 0) > 1}
+						{#if v.active && (j.track_progress?.length ?? 0) > 1}
 							<div class="mt-2 space-y-1">
 								{#each j.track_progress ?? [] as t}
 									<div
@@ -438,13 +412,14 @@
 					</div>
 				{/if}
 
-				{#if ep}
+				{#if v.episodes}
+					{@const ep = v.episodes}
 					<div class="mt-3">
 						<div class="mb-1.5 flex justify-between text-xs text-neutral-400 dark:text-neutral-500">
 							<span>{ep.done.size}/{ep.wanted.length} episodes done</span>
-							{#if current}
+							{#if v.current}
 								<span class="text-accent-600 dark:text-accent-400"
-									>{keysOnly(j) ? 'keys' : 'downloading'} {current}</span
+									>{v.keysOnly ? 'keys' : 'downloading'} {v.current}</span
 								>
 							{/if}
 						</div>
@@ -453,7 +428,7 @@
 								<span
 									class="rounded px-1.5 py-0.5 font-mono text-[11px] {ep.done.has(code)
 										? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-										: code === current
+										: code === v.current
 											? 'animate-pulse bg-accent-100 text-accent-700 dark:bg-accent-900/40 dark:text-accent-400'
 											: 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500'}"
 								>

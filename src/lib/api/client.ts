@@ -28,6 +28,11 @@ export class ApiError extends Error {
 	}
 }
 
+// Turn a thrown value into a user-facing string.
+export function errorMessage(e: unknown): string {
+	return e instanceof ApiError ? e.message : String(e);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	const { apiUrl, apiKey } = getSettings();
 	const base = apiUrl.replace(/\/+$/, '');

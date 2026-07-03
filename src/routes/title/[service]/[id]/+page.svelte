@@ -1,22 +1,16 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { api, ApiError } from '$lib/api/client';
-	import type { CliParam, Title, Tracks } from '$lib/api/types';
+	import { api, errorMessage } from '$lib/api/client';
+	import type { Title, Tracks } from '$lib/api/types';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
 	import ChipSelect from '$lib/components/ChipSelect.svelte';
-	import DownloadAdvanced from '$lib/components/DownloadAdvanced.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import ServiceOptions from '$lib/components/ServiceOptions.svelte';
-	import {
-		blankAdvanced,
-		blankServiceValues,
-		buildAdvanced,
-		buildServiceValues,
-		serviceOptions
-	} from '$lib/download';
+	import OptionForm from '$lib/components/OptionForm.svelte';
+	import { ADVANCED_FIELDS, blankAdvanced, buildAdvanced } from '$lib/download';
+	import { blankValues, coerce, serviceFields, type Field } from '$lib/options';
 	import { getProfiles } from '$lib/profiles';
 	import { isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
 
@@ -73,16 +67,27 @@
 	});
 
 	// This service's own cli options (region, cdn, bitrate mode, …), if it has any.
-	let svcParams = $state<CliParam[]>([]);
+	let svcFields = $state<Field[]>([]);
 	let svcValues = $state<Record<string, string | boolean>>({});
 	onMount(async () => {
 		try {
 			const services = await api.services();
-			svcParams = serviceOptions(services.find((s) => s.tag === data.service)?.cli_params);
-			svcValues = blankServiceValues(svcParams);
+			svcFields = serviceFields(services.find((s) => s.tag === data.service)?.cli_params);
+			svcValues = blankValues(svcFields);
 		} catch {
 			// section simply stays hidden
 		}
+	});
+
+	// Advanced fields, with the free-text `profile` swapped for a picker when the
+	// service has named profiles (null = fetch failed → keep free text; [] = none → hide).
+	const advancedFields = $derived.by<Field[]>(() => {
+		const opts = profileOptions;
+		if (opts === null) return ADVANCED_FIELDS;
+		if (opts.length === 0) return ADVANCED_FIELDS.filter((f) => f.key !== 'profile');
+		return ADVANCED_FIELDS.map((f) =>
+			f.key === 'profile' ? { ...f, type: 'choice' as const, choices: opts } : f
+		);
 	});
 
 	const episodeOptions = $derived(
@@ -108,7 +113,6 @@
 		};
 		return summarize(merged);
 	});
-
 
 	const stale = $derived(JSON.stringify(epSel) !== loadedSel);
 
@@ -149,7 +153,7 @@
 			audioSel = [];
 			subSel = [];
 		} catch (e) {
-			tracksError = e instanceof ApiError ? e.message : String(e);
+			tracksError = errorMessage(e);
 			trackResults = [];
 		} finally {
 			tracksLoading = false;
@@ -172,11 +176,11 @@
 				a_lang: audioSel.length ? audioSel : undefined,
 				s_lang: subSel.length ? subSel : undefined,
 				...buildAdvanced(advanced),
-				...buildServiceValues(svcParams, svcValues)
+				...coerce(svcFields, svcValues)
 			});
 			await goto('/downloads');
 		} catch (e) {
-			startError = e instanceof ApiError ? e.message : String(e);
+			startError = errorMessage(e);
 			starting = false;
 		}
 	}
@@ -369,11 +373,11 @@
 					/>
 				{/if}
 
-				{#if svcParams.length > 0}
-					<ServiceOptions service={data.service} params={svcParams} bind:values={svcValues} />
+				{#if svcFields.length > 0}
+					<OptionForm title="{data.service} options" fields={svcFields} bind:values={svcValues} />
 				{/if}
 
-				<DownloadAdvanced bind:values={advanced} {profileOptions} />
+				<OptionForm title="Advanced options" fields={advancedFields} bind:values={advanced} />
 
 				<Button
 					onclick={startDownload}

@@ -1,25 +1,9 @@
-import type { CliParam, DownloadRequest } from './api/types';
+import { blankValues, coerce, type Field } from './options';
+import type { DownloadRequest } from './api/types';
 
-// Catalog of the advanced /api/download options (everything beyond the primary
-// quality/range/audio/subtitle/episode selectors handled by chips on the page).
-// Types drive both the rendered control and the payload coercion in buildAdvanced.
+// Advanced /api/download options beyond the primary chip selectors, grouped for authoring.
 
-export type FieldType = 'bool' | 'int' | 'num' | 'text' | 'csv';
-
-export interface Field {
-	key: string;
-	type: FieldType;
-	label: string;
-	help?: string;
-	placeholder?: string;
-}
-
-export interface FieldGroup {
-	group: string;
-	fields: Field[];
-}
-
-export const ADVANCED_FIELDS: FieldGroup[] = [
+const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 	{
 		group: 'Track scope',
 		fields: [
@@ -126,92 +110,14 @@ export const ADVANCED_FIELDS: FieldGroup[] = [
 	}
 ];
 
-const TYPE_BY_KEY = new Map<string, FieldType>(
-	ADVANCED_FIELDS.flatMap((g) => g.fields.map((f) => [f.key, f.type] as const))
+export const ADVANCED_FIELDS: Field[] = GROUPS.flatMap((g) =>
+	g.fields.map((f) => ({ ...f, group: g.group }))
 );
 
-export function blankAdvanced(): Record<string, string | boolean> {
-	const v: Record<string, string | boolean> = {};
-	for (const g of ADVANCED_FIELDS)
-		for (const f of g.fields) v[f.key] = f.type === 'bool' ? false : '';
-	return v;
-}
+export const blankAdvanced = (): Record<string, string | boolean> => blankValues(ADVANCED_FIELDS);
 
-/**
- * Coerce raw form values into a partial DownloadRequest, omitting anything left
- * at its default (false / empty) so the backend keeps its own defaults.
- */
-export function buildAdvanced(values: Record<string, string | boolean>): Partial<DownloadRequest> {
-	const out: Record<string, unknown> = {};
-	for (const [key, raw] of Object.entries(values)) {
-		const type = TYPE_BY_KEY.get(key);
-		if (!type) continue;
-		if (type === 'bool') {
-			if (raw === true) out[key] = true;
-		} else if (type === 'int' || type === 'num') {
-			const s = String(raw).trim();
-			if (s !== '' && !Number.isNaN(Number(s))) out[key] = Number(s);
-		} else if (type === 'csv') {
-			const arr = String(raw)
-				.split(',')
-				.map((x) => x.trim())
-				.filter(Boolean);
-			if (arr.length) out[key] = arr;
-		} else {
-			const s = String(raw).trim();
-			if (s === '') continue;
-			// `slow` accepts a boolean or a "MIN-MAX" string.
-			if (key === 'slow' && (s === 'true' || s === 'false')) out[key] = s === 'true';
-			else out[key] = s;
-		}
-	}
-	return out;
-}
-
-// Service-specific options come from /api/services cli_params; only real options
-// (not the title argument) are user-editable.
-export function serviceOptions(params: CliParam[] | undefined): CliParam[] {
-	return (params ?? []).filter((p) => p.kind === 'option');
-}
-
-const defaultString = (p: CliParam) =>
-	p.default == null ? '' : Array.isArray(p.default) ? p.default.join(', ') : String(p.default);
-
-/** Form state pre-filled with each option's default so the form shows it. */
-export function blankServiceValues(params: CliParam[]): Record<string, string | boolean> {
-	const v: Record<string, string | boolean> = {};
-	for (const p of serviceOptions(params)) v[p.name] = p.is_flag ? p.default === true : defaultString(p);
-	return v;
-}
-
-/**
- * Coerce service-option form values into request-body extras, omitting anything
- * still at its default so the service's own defaults apply server-side.
- */
-export function buildServiceValues(
-	params: CliParam[],
-	values: Record<string, string | boolean>
-): Record<string, unknown> {
-	const out: Record<string, unknown> = {};
-	for (const p of serviceOptions(params)) {
-		const raw = values[p.name];
-		if (p.is_flag) {
-			if (raw !== (p.default === true)) out[p.name] = raw === true;
-			continue;
-		}
-		const s = String(raw ?? '').trim();
-		if (s === '' || s === defaultString(p)) continue;
-		if (p.multiple)
-			out[p.name] = s
-				.split(',')
-				.map((x) => x.trim())
-				.filter(Boolean);
-		else if ((p.type === 'integer' || p.type === 'float') && !Number.isNaN(Number(s)))
-			out[p.name] = Number(s);
-		else out[p.name] = s;
-	}
-	return out;
-}
+export const buildAdvanced = (values: Record<string, string | boolean>): Partial<DownloadRequest> =>
+	coerce(ADVANCED_FIELDS, values);
 
 // An episode is done once its SxxEyy code appears in an output filename.
 export function episodeProgress(

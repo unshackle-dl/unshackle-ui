@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { api, ApiError } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { EnvCheck, Health, RefreshServicesResponse, ServerConfig } from '$lib/api/types';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -33,7 +33,7 @@
 			test = { kind: 'ok', health };
 			loadServer();
 		} catch (e) {
-			test = { kind: 'error', message: e instanceof ApiError ? e.message : String(e) };
+			test = { kind: 'error', message: errorMessage(e) };
 		}
 	}
 
@@ -85,7 +85,7 @@
 			const r = await api.clearTemp();
 			ops[which] = { kind: 'ok', message: `Cleared, freed ${formatBytes(r.freed_bytes)}.` };
 		} catch (e) {
-			ops[which] = { kind: 'error', message: e instanceof ApiError ? e.message : String(e) };
+			ops[which] = { kind: 'error', message: errorMessage(e) };
 		}
 	}
 
@@ -107,7 +107,7 @@
 					}
 				: { kind: 'error', message: 'One or more repos failed to sync.' };
 		} catch (e) {
-			ops.refresh = { kind: 'error', message: e instanceof ApiError ? e.message : String(e) };
+			ops.refresh = { kind: 'error', message: errorMessage(e) };
 		}
 	}
 </script>
