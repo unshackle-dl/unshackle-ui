@@ -94,7 +94,12 @@
 		data.titles
 			.map((t) => wantedCode(t))
 			.filter((c): c is string => c != null)
-			.map((c) => ({ value: c, label: c }))
+			// New line at each season boundary (codes are SxxEyy; slice(0,3) = season).
+			.map((c, i, all) => ({
+				value: c,
+				label: c,
+				breakBefore: i > 0 && c.slice(0, 3) !== all[i - 1].slice(0, 3)
+			}))
 	);
 
 	// Per-episode summaries shown in "Available tracks".
@@ -170,7 +175,8 @@
 				buildDownloadRequest(
 					{ service: data.service, title_id: data.titleId },
 					{
-						wanted: epSel,
+						// An empty selection means all episodes; send them so progress can list them.
+						wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
 						quality: qualitySel,
 						vcodec: codecSel,
 						range: rangeSel,

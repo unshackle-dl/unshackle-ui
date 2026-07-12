@@ -4,6 +4,7 @@
 	interface Option {
 		value: string;
 		label: string;
+		breakBefore?: boolean; // force this chip onto a new line (e.g. new season)
 	}
 	let {
 		label,
@@ -33,6 +34,7 @@
 	{/if}
 	<div class="mt-1.5 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
 		{#each options as o (o.value)}
+			{#if o.breakBefore}<span class="basis-full"></span>{/if}
 			<button
 				type="button"
 				onclick={() => toggle(o.value)}

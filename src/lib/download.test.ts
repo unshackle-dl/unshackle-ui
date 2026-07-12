@@ -128,12 +128,24 @@ test('buildDownloadRequest omits every empty selector', () => {
 });
 
 test('buildDownloadRequest coerces quality strings to numbers', () => {
-	const r = buildDownloadRequest(BASE, { ...noSel(), quality: ['1080', '720'] }, blankAdvanced(), [], {});
+	const r = buildDownloadRequest(
+		BASE,
+		{ ...noSel(), quality: ['1080', '720'] },
+		blankAdvanced(),
+		[],
+		{}
+	);
 	assert.deepEqual(r.quality, [1080, 720]);
 });
 
 test('buildDownloadRequest passes wanted through unchanged', () => {
-	const r = buildDownloadRequest(BASE, { ...noSel(), wanted: ['S01E01', 'S01E02'] }, blankAdvanced(), [], {});
+	const r = buildDownloadRequest(
+		BASE,
+		{ ...noSel(), wanted: ['S01E01', 'S01E02'] },
+		blankAdvanced(),
+		[],
+		{}
+	);
 	assert.deepEqual(r.wanted, ['S01E01', 'S01E02']);
 });
 

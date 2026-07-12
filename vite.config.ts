@@ -10,9 +10,6 @@ export default defineConfig({
 	define: {
 		__APP_VERSION__: JSON.stringify(version)
 	},
-	// Windows/WSL on /mnt/c doesn't deliver inotify events, so poll for changes
-	// to keep HMR working. Cheap; only affects dev.
-	server: { watch: { usePolling: true, interval: 300 } },
 	plugins: [
 		tailwindcss(),
 		sveltekit({
