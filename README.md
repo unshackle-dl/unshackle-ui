@@ -21,7 +21,7 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
-Point it at a running unshackle API (default `http://localhost:8786`) via the **Settings** page, then start browsing.
+Point it at a running unshackle API (default `http://localhost:8786`) via the **Settings** page, then start browsing. On the unshackle side, start the API with `unshackle serve --no-key` for local testing, or `unshackle serve --host 0.0.0.0` with an `api_secret` set in `unshackle.yaml` to reach it from another machine.
 
 ```shell
 npm run build    # static site → build/
