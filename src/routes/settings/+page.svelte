@@ -7,6 +7,7 @@
 	import Card from '$lib/components/Card.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { settings } from '$lib/config';
+	import { mask } from '$lib/stores/incognito';
 	import { sansFont, SANS_FONTS, monoFont, MONO_FONTS } from '$lib/stores/fonts';
 
 	let draft = $state({ apiUrl: $settings.apiUrl, apiKey: $settings.apiKey });
@@ -128,7 +129,7 @@
 				type="url"
 				bind:value={draft.apiUrl}
 				placeholder="http://localhost:8786"
-				class="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+				class="redact mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
 			/>
 			<p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
 				All requests go to this origin. Leave off any trailing <code class="font-mono">/api</code>.
@@ -197,7 +198,7 @@
 				class="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
 			>
 				<Icon name="alert" size={16} class="mt-0.5" />
-				<span>{test.message}</span>
+				<span>{$mask.text(test.message)}</span>
 			</div>
 		{/if}
 	</div>
@@ -234,13 +235,13 @@
 			<div>
 				<dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Output directory</dt>
 				<dd class="mt-0.5 font-mono text-xs break-all text-neutral-900 dark:text-neutral-100">
-					{server.directories.downloads}
+					{$mask.text(server.directories.downloads)}
 				</dd>
 			</div>
 			<div>
 				<dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Temp directory</dt>
 				<dd class="mt-0.5 font-mono text-xs break-all text-neutral-900 dark:text-neutral-100">
-					{server.directories.temp}
+					{$mask.text(server.directories.temp)}
 				</dd>
 			</div>
 			<div class="sm:col-span-2">
@@ -250,7 +251,7 @@
 						<Badge tone="green">all</Badge>
 					{:else}
 						{#each server.serve.services as s (s)}
-							<Badge>{s}</Badge>
+							<Badge>{$mask.service(s)}</Badge>
 						{/each}
 					{/if}
 				</dd>
@@ -264,7 +265,7 @@
 	</p>
 
 	<Card class="mt-6 max-w-2xl divide-y divide-neutral-100 p-0 dark:divide-neutral-800">
-		{#each [{ key: 'temp' as const, label: 'Clear temp', desc: `Empties ${server.directories.temp}` }] as row (row.key)}
+		{#each [{ key: 'temp' as const, label: 'Clear temp', desc: `Empties ${$mask.text(server.directories.temp)}` }] as row (row.key)}
 			{@const op = ops[row.key]}
 			<div class="px-6 py-4">
 				<div class="flex items-center justify-between gap-4">
@@ -347,10 +348,10 @@
 									? 'text-neutral-500 dark:text-neutral-400'
 									: 'text-red-600 dark:text-red-400'}"
 							>
-								{repo.spec}{repo.updated ? '' : ' (failed)'}
+								{$mask.text(repo.spec)}{repo.updated ? '' : ' (failed)'}
 							</span>
 							{#each repo.changes as c (c)}
-								<p class="ml-3 font-mono text-neutral-400 dark:text-neutral-500">{c}</p>
+								<p class="ml-3 font-mono text-neutral-400 dark:text-neutral-500">{$mask.text(c)}</p>
 							{/each}
 						</div>
 					{/each}

@@ -46,4 +46,9 @@
 	html {
 		@apply bg-neutral-50 dark:bg-neutral-900;
 	}
+
+	/* Incognito mode: free-text inputs can't be value-swapped, so render their text as dots */
+	html.incognito .redact {
+		-webkit-text-security: disc;
+	}
 }

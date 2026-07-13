@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { coerce, type Field } from '$lib/options';
+	import { mask } from '$lib/stores/incognito';
 
 	// Collapsible option form for any Field[]: bools as chips, the rest as a grid, groups headed.
 	let {
@@ -81,7 +82,7 @@
 									>
 										{#if !f.default}<option value="">default</option>{/if}
 										{#each f.choices ?? [] as c (c)}
-											<option value={c}>{c}</option>
+											<option value={c}>{f.key === 'profile' ? $mask.profile(c) : c}</option>
 										{/each}
 									</select>
 								{:else}
@@ -90,7 +91,7 @@
 										step={f.type === 'num' ? 'any' : undefined}
 										placeholder={f.placeholder}
 										bind:value={values[f.key]}
-										class="mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+										class="redact mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
 									/>
 								{/if}
 								{#if f.help}

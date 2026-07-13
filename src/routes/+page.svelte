@@ -5,6 +5,7 @@
 	import { api, errorMessage } from '$lib/api/client';
 	import type { SearchResult } from '$lib/api/types';
 	import { getProfiles } from '$lib/profiles';
+	import { mask } from '$lib/stores/incognito';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -99,7 +100,7 @@
 		<div class="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
 			<Icon name="alert" size={16} class="mt-0.5" />
 			<span>
-				Couldn't load services: {data.error}. Check the
+				Couldn't load services: {$mask.text(data.error)}. Check the
 				<a href="/settings" class="font-medium underline">API settings</a>.
 			</span>
 		</div>
@@ -120,7 +121,7 @@
 				aria-label="Service"
 			>
 				{#each data.services as s (s.tag)}
-					<option value={s.tag}>{s.tag}</option>
+					<option value={s.tag}>{$mask.service(s.tag)}</option>
 				{/each}
 			</select>
 			<div
@@ -138,7 +139,7 @@
 				bind:value={query}
 				type="search"
 				placeholder="Search titles, or paste a title ID / URL…"
-				class="w-full rounded-lg border border-neutral-200 bg-white py-2 pr-3 pl-9 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+				class="redact w-full rounded-lg border border-neutral-200 bg-white py-2 pr-3 pl-9 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
 			/>
 		</div>
 
@@ -173,7 +174,7 @@
 					aria-label="Profile"
 				>
 					{#each profileOptions as p (p)}
-						<option value={p}>{p}</option>
+						<option value={p}>{$mask.profile(p)}</option>
 					{/each}
 				</select>
 				<div
@@ -195,7 +196,7 @@
 			title={geofence.length
 				? `Geofenced to: ${geofence.join(', ')}. Set a proxy URI or country code.`
 				: 'Set a proxy URI or country code.'}
-			class="w-44 rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+			class="redact w-44 rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
 			aria-label="Proxy or country code"
 		/>
 		{#if geofence.length}
@@ -221,7 +222,7 @@
 	<Card class="mt-6 p-4">
 		<div class="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
 			<Icon name="alert" size={16} class="mt-0.5" />
-			<span>{error}</span>
+			<span>{$mask.text(error)}</span>
 		</div>
 	</Card>
 {:else if results}
@@ -250,17 +251,17 @@
 					<div class="min-w-0 flex-1">
 						<div class="flex items-center gap-2">
 							<span class="truncate font-medium text-neutral-900 dark:text-neutral-100"
-								>{r.title}</span
+								>{$mask.title(r.title)}</span
 							>
 							{#if r.label}<Badge tone="accent">{r.label}</Badge>{/if}
 						</div>
 						{#if r.description}
 							<p class="mt-0.5 truncate text-sm text-neutral-500 dark:text-neutral-400">
-								{r.description}
+								{$mask.text(r.description)}
 							</p>
 						{/if}
 						<p class="mt-0.5 truncate font-mono text-xs text-neutral-400 dark:text-neutral-500">
-							{r.id}
+							{$mask.id(r.id)}
 						</p>
 					</div>
 					{#if pendingId === r.id}

@@ -12,6 +12,7 @@
 	import { ADVANCED_FIELDS, blankAdvanced, buildDownloadRequest } from '$lib/download';
 	import { blankValues, serviceFields, type Field } from '$lib/options';
 	import { getProfiles } from '$lib/profiles';
+	import { mask } from '$lib/stores/incognito';
 	import { isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
 
 	let { data } = $props();
@@ -204,20 +205,20 @@
 </a>
 
 <div class="mt-3 flex flex-wrap items-center gap-3">
-	<h1 class="text-2xl font-semibold tracking-tight">{header}</h1>
+	<h1 class="text-2xl font-semibold tracking-tight">{$mask.title(header)}</h1>
 	{#if first?.type}<Badge tone="accent">{episodic ? 'series' : first.type}</Badge>{/if}
 	{#if first?.year}<span class="text-sm text-neutral-500 dark:text-neutral-400">{first.year}</span
 		>{/if}
 </div>
 <p class="mt-1 font-mono text-xs text-neutral-400 dark:text-neutral-500">
-	{data.service} · {data.titleId}
+	{$mask.service(data.service)} · {$mask.id(data.titleId)}
 </p>
 
 {#if data.error}
 	<Card class="mt-6 p-4">
 		<div class="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
 			<Icon name="alert" size={16} class="mt-0.5" />
-			<span>{data.error}</span>
+			<span>{$mask.text(data.error)}</span>
 		</div>
 	</Card>
 {:else}
@@ -293,7 +294,7 @@
 			{:else if tracksError}
 				<div class="flex items-start gap-2 py-4 text-sm text-red-600 dark:text-red-400">
 					<Icon name="alert" size={16} class="mt-0.5" />
-					<span>{tracksError}</span>
+					<span>{$mask.text(tracksError)}</span>
 				</div>
 			{:else if episodeSummaries.length > 0}
 				<div class="mt-3 max-h-96 space-y-4 overflow-y-auto pr-1">
@@ -304,7 +305,7 @@
 						>
 							{#if e.code}
 								<p class="text-xs font-semibold text-neutral-700 dark:text-neutral-200">
-									{e.code} · {e.name}
+									{e.code} · {$mask.title(e.name)}
 								</p>
 							{/if}
 							<dl class="mt-1.5 space-y-2 text-sm">
@@ -384,7 +385,11 @@
 				{/if}
 
 				{#if svcFields.length > 0}
-					<OptionForm title="{data.service} options" fields={svcFields} bind:values={svcValues} />
+					<OptionForm
+						title="{$mask.service(data.service)} options"
+						fields={svcFields}
+						bind:values={svcValues}
+					/>
 				{/if}
 
 				<OptionForm title="Advanced options" fields={advancedFields} bind:values={advanced} />
@@ -408,7 +413,7 @@
 		{#if startError}
 			<div class="mt-4 flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
 				<Icon name="alert" size={16} class="mt-0.5" />
-				<span>{startError}</span>
+				<span>{$mask.text(startError)}</span>
 			</div>
 		{/if}
 	</Card>

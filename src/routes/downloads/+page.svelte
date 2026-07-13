@@ -3,6 +3,7 @@
 	import { api, ApiError, errorMessage } from '$lib/api/client';
 	import type { Job } from '$lib/api/types';
 	import { isFinished, isQueued, jobView } from '$lib/job';
+	import { mask } from '$lib/stores/incognito';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -174,7 +175,7 @@
 							? 'bg-accent-600 text-white'
 							: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'}"
 					>
-						{s}
+						{$mask.service(s)}
 					</button>
 				{/each}
 			</div>
@@ -250,15 +251,15 @@
 						<div class="flex items-center gap-2">
 							<Badge tone={v.tone}>{v.statusLabel}</Badge>
 							<span class="truncate font-medium text-neutral-900 dark:text-neutral-100"
-								>{v.label}</span
+								>{$mask.title(v.label)}</span
 							>
 						</div>
 						<p class="mt-0.5 truncate font-mono text-xs text-neutral-400 dark:text-neutral-500">
-							{j.job_id}{#if j.service}{' · '}{j.service}{/if}
+							{j.job_id}{#if j.service}{' · '}{$mask.service(j.service)}{/if}
 						</p>
 						{#if v.error}
 							<p class="mt-1 text-sm text-red-600 dark:text-red-400">
-								{v.error}
+								{$mask.text(v.error)}
 							</p>
 						{:else if v.done}
 							<p class="mt-1 text-sm text-green-600 dark:text-green-400">
@@ -333,7 +334,7 @@
 						<div class="space-y-2 px-3 pb-3">
 							{#if j.error_details}
 								<p class="text-sm break-words whitespace-pre-wrap text-red-700 dark:text-red-300">
-									{j.error_details}
+									{$mask.text(j.error_details)}
 								</p>
 							{/if}
 							{#if j.worker_stderr}
@@ -344,7 +345,9 @@
 										Worker stderr
 									</summary>
 									<pre
-										class="mt-1 max-h-48 overflow-auto rounded-md bg-red-100/70 p-2 font-mono text-xs whitespace-pre-wrap text-red-800 dark:bg-red-950/40 dark:text-red-200">{j.worker_stderr}</pre>
+										class="mt-1 max-h-48 overflow-auto rounded-md bg-red-100/70 p-2 font-mono text-xs whitespace-pre-wrap text-red-800 dark:bg-red-950/40 dark:text-red-200">{$mask.text(
+											j.worker_stderr
+										)}</pre>
 								</details>
 							{/if}
 						</div>

@@ -3,6 +3,7 @@
 	import AccentPicker from './AccentPicker.svelte';
 	import Icon, { type IconName } from './Icon.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
+	import { incognito, toggleIncognito } from '$lib/stores/incognito';
 
 	const nav: { href: string; label: string; icon: IconName }[] = [
 		{ href: '/', label: 'Browse', icon: 'search' },
@@ -63,6 +64,17 @@
 	>
 		<div class="font-mono text-xs text-neutral-400 dark:text-neutral-500">v{__APP_VERSION__}</div>
 		<div class="flex shrink-0 items-center gap-2">
+			<button
+				onclick={toggleIncognito}
+				class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 {$incognito
+					? 'text-accent-600 dark:text-accent-400'
+					: 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'}"
+				title="Toggle incognito mode"
+				aria-label="Toggle incognito mode"
+				aria-pressed={$incognito}
+			>
+				<Icon name={$incognito ? 'eye-off' : 'eye'} />
+			</button>
 			<ThemeToggle />
 			<AccentPicker />
 		</div>

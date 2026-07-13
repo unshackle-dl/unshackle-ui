@@ -3,6 +3,7 @@
 	import { api, errorMessage } from '$lib/api/client';
 	import type { HistoryEntry } from '$lib/api/types';
 	import { isKeysOnly, tone } from '$lib/job';
+	import { mask } from '$lib/stores/incognito';
 	import Badge from '$lib/components/Badge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Card from '$lib/components/Card.svelte';
@@ -140,7 +141,7 @@
 						? 'bg-accent-600 text-white'
 						: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'}"
 				>
-					{s}
+					{$mask.service(s)}
 				</button>
 			{/each}
 		</div>
@@ -187,14 +188,16 @@
 								{keysOnly(e) ? 'Keys' : 'Download'}
 							</Badge>
 							<span class="truncate font-medium text-neutral-900 dark:text-neutral-100">
-								{e.title || e.title_id}
+								{$mask.title(e.title || e.title_id)}
 							</span>
 						</div>
 						<p class="mt-0.5 truncate font-mono text-xs text-neutral-400 dark:text-neutral-500">
-							{e.service} · {e.title_id}
+							{$mask.service(e.service)} · {$mask.id(e.title_id)}
 						</p>
 						{#if e.error_message}
-							<p class="mt-1 truncate text-sm text-red-600 dark:text-red-400">{e.error_message}</p>
+							<p class="mt-1 truncate text-sm text-red-600 dark:text-red-400">
+								{$mask.text(e.error_message)}
+							</p>
 						{/if}
 					</div>
 					<div class="flex shrink-0 items-center gap-3">
