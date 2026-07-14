@@ -10,6 +10,8 @@
   <a href="https://github.com/unshackle-dl/unshackle">unshackle</a>
 </p>
 
+<img width="1443" height="1241" alt="image" src="https://github.com/user-attachments/assets/d1e35c73-7114-444d-b6c1-55453d42838e" />
+
 ---
 
 A thin browser client for [unshackle](https://github.com/unshackle-dl/unshackle). Search a service or open a title by ID/URL, pick the tracks, quality, and options you want, then start and monitor downloads, all against a running unshackle API. Built with SvelteKit + Tailwind; it ships as static files and talks to the API directly from the browser.
