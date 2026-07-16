@@ -16,6 +16,10 @@
 
 A thin browser client for [unshackle](https://github.com/unshackle-dl/unshackle). Search a service or open a title by ID/URL, pick the tracks, quality, and options you want, then start and monitor downloads, all against a running unshackle API. Built with SvelteKit + Tailwind; it ships as static files and talks to the API directly from the browser.
 
+## unshackle compatibility
+
+The full UI needs unshackle newer than v5.3.0: commit [`7fdd514`](https://github.com/unshackle-dl/unshackle/commit/7fdd514) (2026-07-01) or later, which adds the job retry/priority/clear, history, config, profiles, and maintenance endpoints. On v5.2.0 through v5.3.0 the core flow (search, browse titles, pick tracks, download, monitor the queue) still works, but the History page, queue actions, profiles, and the maintenance actions in Settings will fail. Run unshackle from `main` until a release is tagged after that commit.
+
 ## Setup
 
 ```shell
