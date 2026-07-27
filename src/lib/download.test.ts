@@ -149,6 +149,19 @@ test('buildDownloadRequest passes wanted through unchanged', () => {
 	assert.deepEqual(r.wanted, ['S01E01', 'S01E02']);
 });
 
+// ChipSelect submits option values, never labels, so the "(original)" marker the
+// audio row adds to a label can never reach the payload.
+test('buildDownloadRequest passes a_lang through as bare language tags', () => {
+	const r = buildDownloadRequest(
+		BASE,
+		{ ...noSel(), a_lang: ['en', 'ja'] },
+		blankAdvanced(),
+		[],
+		{}
+	);
+	assert.deepEqual(r.a_lang, ['en', 'ja']);
+});
+
 test('buildDownloadRequest omits unset vcodec/range/a_lang/s_lang', () => {
 	const r = buildDownloadRequest(BASE, noSel(), blankAdvanced(), [], {});
 	assert.ok(!('vcodec' in r) && !('range' in r) && !('a_lang' in r) && !('s_lang' in r));

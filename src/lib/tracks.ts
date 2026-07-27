@@ -26,6 +26,7 @@ export interface TrackSummary {
 	audioCodecs: string[];
 	atmos: boolean;
 	subLangs: string[];
+	originalAudioLangs: string[];
 	counts: { video: number; audio: number; subtitles: number };
 }
 
@@ -44,6 +45,14 @@ export function summarize(tracks: Tracks): TrackSummary {
 		),
 		vcodecs: distinct(v.map((t) => t.codec_display || t.codec)),
 		audioLangs: distinct(a.map((t) => t.language ?? '').filter(Boolean)).sort(),
+		// The backend resolves this with the same matcher the downloader uses, so it
+		// stays right for regional variants the UI cannot tell apart on its own.
+		originalAudioLangs: distinct(
+			a
+				.filter((t) => t.is_original)
+				.map((t) => t.language ?? '')
+				.filter(Boolean)
+		),
 		audioCodecs: distinct(a.map((t) => t.codec_display || t.codec)),
 		atmos: a.some((t) => t.atmos),
 		subLangs: distinct(s.map((t) => t.language ?? '').filter(Boolean)).sort(),

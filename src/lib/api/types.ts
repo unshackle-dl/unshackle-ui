@@ -85,6 +85,7 @@ export interface AudioTrack {
 	bitrate: number;
 	channels: number;
 	language: string | null;
+	is_original: boolean;
 	atmos: boolean;
 	descriptive: boolean;
 	drm: string | null;

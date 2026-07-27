@@ -1,6 +1,7 @@
 <script lang="ts">
-	// Reusable multi-select chip group. Empty selection means "all / any": the
-	// caller omits the corresponding API filter so the backend includes everything.
+	// Reusable multi-select chip group. An empty selection makes the caller omit the
+	// corresponding API filter, so the backend applies its own default. That default
+	// is not "all" for every field, so each caller states its own via emptyHint.
 	interface Option {
 		value: string;
 		label: string;

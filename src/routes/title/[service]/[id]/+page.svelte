@@ -40,7 +40,8 @@
 	// Fixed list like CODECS: manifests don't always advertise every range the service can serve.
 	const RANGES = ['SDR', 'HLG', 'HDR10', 'HDR10P', 'DV', 'HYBRID'];
 
-	// Download config. Each is a multi-select; empty means "include all / any".
+	// Download config. Each is a multi-select; empty omits the filter and lets the
+	// backend default apply, which differs per row (see each emptyHint below).
 	let qualitySel = $state<string[]>([]);
 	let codecSel = $state<string[]>([]);
 	let rangeSel = $state<string[]>([]);
@@ -119,6 +120,11 @@
 		};
 		return summarize(merged);
 	});
+
+	// Which audio languages "orig" would pick. The API flags these per track. Many
+	// services leave the title language unset, which is legitimate, so an empty list
+	// just means no marker.
+	const originalLangs = $derived(combined?.originalAudioLangs ?? []);
 
 	const stale = $derived(JSON.stringify(epSel) !== loadedSel);
 
@@ -341,7 +347,7 @@
 	<Card class="mt-6 p-5">
 		<h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Download</h2>
 		<p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-			Click to pick tracks. Leave a row empty to include all.
+			Click to pick tracks. An empty row uses the default next to its label.
 		</p>
 		{#if combined}
 			<div class="mt-4 space-y-4">
@@ -362,16 +368,19 @@
 				<div class="grid gap-4 sm:grid-cols-2">
 					<ChipSelect
 						label="Range"
-						emptyHint="any"
+						emptyHint="SDR"
 						bind:selected={rangeSel}
 						options={RANGES.map((r) => ({ value: r, label: r }))}
 					/>
 					{#if combined.audioLangs.length > 0}
 						<ChipSelect
 							label="Audio languages"
-							emptyHint="all"
+							emptyHint="original language"
 							bind:selected={audioSel}
-							options={combined.audioLangs.map((l) => ({ value: l, label: l }))}
+							options={combined.audioLangs.map((l) => ({
+								value: l,
+								label: originalLangs.includes(l) ? `${l} (original)` : l
+							}))}
 						/>
 					{/if}
 				</div>
