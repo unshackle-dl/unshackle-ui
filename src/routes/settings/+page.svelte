@@ -179,8 +179,8 @@
 				<Icon name="check" size={16} class="mt-0.5" />
 				<span>
 					Connected. Status <strong>{test.health.status}</strong>, unshackle
-					<strong>v{test.health.version}</strong>{test.health.commit
-						? ` (${test.health.commit})`
+					<strong>v{test.health.version}</strong>{test.health.code_hash
+						? ` (code hash ${test.health.code_hash})`
 						: ''}.
 				</span>
 			</div>

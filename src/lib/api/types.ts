@@ -5,7 +5,7 @@
 export interface Health {
 	status: string;
 	version: string;
-	commit?: string | null;
+	code_hash?: string | null;
 	update_check?: {
 		update_available: boolean;
 		current_version: string;

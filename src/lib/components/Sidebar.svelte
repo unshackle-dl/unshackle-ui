@@ -62,9 +62,13 @@
 	<div
 		class="flex items-center justify-between border-t border-neutral-200 px-5 py-3 dark:border-neutral-800"
 	>
-		<div class="font-mono text-xs leading-tight text-neutral-400 dark:text-neutral-500">
+		<!-- This UI's own build. The server's code hash is separate, shown in Settings. -->
+		<div
+			class="font-mono text-xs leading-tight text-neutral-400 dark:text-neutral-500"
+			title="unshackle-ui version and git commit"
+		>
 			<div>v{__APP_VERSION__}</div>
-			{#if __APP_COMMIT__}<div>{__APP_COMMIT__}</div>{/if}
+			{#if __APP_COMMIT__}<div>git {__APP_COMMIT__}</div>{/if}
 		</div>
 		<div class="flex shrink-0 items-center gap-2">
 			<button

@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 
 const version = JSON.parse(readFileSync('./package.json', 'utf8')).version;
 
-// Read once at config load, so a running dev server keeps the hash it started with.
+// Read once at config load, so a running dev server keeps the commit it started with.
 // Empty outside a git checkout: source tarball, missing git binary, or a repo with no commits.
 let commit = '';
 try {
