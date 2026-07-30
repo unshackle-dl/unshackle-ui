@@ -179,7 +179,9 @@
 				<Icon name="check" size={16} class="mt-0.5" />
 				<span>
 					Connected. Status <strong>{test.health.status}</strong>, unshackle
-					<strong>v{test.health.version}</strong>.
+					<strong>v{test.health.version}</strong>{test.health.commit
+						? ` (${test.health.commit})`
+						: ''}.
 				</span>
 			</div>
 			{#if test.health.update_check?.update_available}

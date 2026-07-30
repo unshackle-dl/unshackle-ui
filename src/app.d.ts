@@ -11,6 +11,7 @@ declare global {
 
 	// Injected by Vite `define` (see vite.config.ts)
 	const __APP_VERSION__: string;
+	const __APP_COMMIT__: string;
 }
 
 export {};

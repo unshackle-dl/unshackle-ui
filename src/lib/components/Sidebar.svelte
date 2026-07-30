@@ -62,7 +62,10 @@
 	<div
 		class="flex items-center justify-between border-t border-neutral-200 px-5 py-3 dark:border-neutral-800"
 	>
-		<div class="font-mono text-xs text-neutral-400 dark:text-neutral-500">v{__APP_VERSION__}</div>
+		<div class="font-mono text-xs leading-tight text-neutral-400 dark:text-neutral-500">
+			<div>v{__APP_VERSION__}</div>
+			{#if __APP_COMMIT__}<div>{__APP_COMMIT__}</div>{/if}
+		</div>
 		<div class="flex shrink-0 items-center gap-2">
 			<button
 				onclick={toggleIncognito}
