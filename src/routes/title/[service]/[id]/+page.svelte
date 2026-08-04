@@ -13,11 +13,12 @@
 	import { blankValues, serviceFields, type Field } from '$lib/options';
 	import { getProfiles } from '$lib/profiles';
 	import { mask } from '$lib/stores/incognito';
-	import { isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
+	import { hasParts, isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
 
 	let { data } = $props();
 
 	const episodic = untrack(() => isEpisodic(data.titles));
+	const split = untrack(() => hasParts(data.titles));
 	const first = untrack(() => data.titles[0]);
 	const header = first?.series_title || first?.name || 'Title';
 
@@ -96,7 +97,7 @@
 		data.titles
 			.map((t) => wantedCode(t))
 			.filter((c): c is string => c != null)
-			// New line at each season boundary (codes are SxxEyy; slice(0,3) = season).
+			// New line at each season boundary (codes start SxxEyy; slice(0,3) = season).
 			.map((c, i, all) => ({
 				value: c,
 				label: c,
@@ -272,6 +273,12 @@
 				<div class="mt-3">
 					<ChipSelect label="" bind:selected={epSel} options={episodeOptions} />
 				</div>
+				{#if split}
+					<p class="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
+						S01E01.2 is part 2 of one episode. Pick any part on its own, or all of them for the
+						whole episode.
+					</p>
+				{/if}
 				{#if stale && !tracksLoading}
 					<p class="mt-2 text-xs text-accent-600 dark:text-accent-400">
 						Selection changed. Click "Refresh selection" to update available tracks.

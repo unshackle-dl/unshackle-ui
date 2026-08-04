@@ -62,3 +62,19 @@ test('jobView surfaces current episode from output files while active', () => {
 	assert.equal(v.episodes?.done.size, 1);
 	assert.equal(v.current, 'S01E02');
 });
+
+// dl.py builds current_title as SxxEyy[.part], the same shape wantedCode() produces,
+// so it matches a chip in the wanted list.
+test('jobView surfaces the running part from current_title', () => {
+	const v = jobView(
+		job({
+			status: 'downloading',
+			current_title: 'S01E01.2',
+			parameters: { wanted: ['S01E01.1', 'S01E01.2', 'S01E01.3'] },
+			output_files: ['Show.S01E01.Part.1.mkv']
+		})
+	);
+	assert.equal(v.episodes?.done.size, 1);
+	assert.equal(v.current, 'S01E01.2');
+	assert.ok(v.episodes?.wanted.includes('S01E01.2'));
+});

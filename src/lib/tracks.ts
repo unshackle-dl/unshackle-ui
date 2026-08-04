@@ -3,16 +3,21 @@ import type { Title, Tracks } from './api/types';
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 /**
- * The unshackle `wanted` episode selector, e.g. "S01E02". Returns null for
- * movies / anything without a season+episode number (whole-title download).
+ * The unshackle `wanted` episode selector, e.g. "S01E02", or "S01E02.3" for one
+ * part of a split episode. Returns null for movies / anything without a
+ * season+episode number (whole-title download).
  */
 export function wantedCode(t: Title): string | null {
 	if (t.season == null || t.number == null) return null;
-	return `S${pad2(t.season)}E${pad2(t.number)}`;
+	return `S${pad2(t.season)}E${pad2(t.number)}${t.part == null ? '' : `.${t.part}`}`;
 }
 
 export function isEpisodic(titles: Title[]): boolean {
 	return titles.some((t) => t.season != null && t.number != null);
+}
+
+export function hasParts(titles: Title[]): boolean {
+	return titles.some((t) => t.part != null);
 }
 
 // Order video dynamic ranges best-first for display.

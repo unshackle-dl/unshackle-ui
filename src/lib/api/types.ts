@@ -61,6 +61,7 @@ export interface Title {
 	series_title?: string | null;
 	season?: number | null;
 	number?: number | null;
+	part?: number | null;
 }
 
 export interface VideoTrack {
@@ -151,7 +152,7 @@ export interface Job {
 	title_id?: string;
 	title?: string;
 	phase?: string; // human-readable current step, e.g. "downloading video 288p SDR"
-	current_title?: string | null; // SxxEyy of the episode downloading now
+	current_title?: string | null; // SxxEyy of the episode downloading now, SxxEyy.N for one part
 	completed_tracks?: number;
 	total_tracks?: number;
 	active_tracks?: string[];

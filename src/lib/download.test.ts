@@ -149,6 +149,17 @@ test('buildDownloadRequest passes wanted through unchanged', () => {
 	assert.deepEqual(r.wanted, ['S01E01', 'S01E02']);
 });
 
+test('buildDownloadRequest passes part codes through unchanged', () => {
+	const r = buildDownloadRequest(
+		BASE,
+		{ ...noSel(), wanted: ['S01E01.1', 'S01E01.2', 'S01E02'] },
+		blankAdvanced(),
+		[],
+		{}
+	);
+	assert.deepEqual(r.wanted, ['S01E01.1', 'S01E01.2', 'S01E02']);
+});
+
 // ChipSelect submits option values, never labels, so the "(original)" marker the
 // audio row adds to a label can never reach the payload.
 test('buildDownloadRequest passes a_lang through as bare language tags', () => {
@@ -190,6 +201,35 @@ test('episodeProgress marks done episodes from output files', () => {
 	assert.ok(p);
 	assert.deepEqual([...p.done], ['S01E01', 'S01E02']);
 	assert.equal(p.current, 'S01E03');
+});
+
+test('episodeProgress matches part codes against Part filenames', () => {
+	const p = episodeProgress(
+		['S01E01.1', 'S01E01.2', 'S01E01.3'],
+		['/dl/Show.S01E01.Part.1.1080p.mkv', '/dl/Show S01E01 Part 2 1080p.mkv']
+	);
+	assert.ok(p);
+	assert.deepEqual([...p.done], ['S01E01.1', 'S01E01.2']);
+	assert.equal(p.current, 'S01E01.3');
+});
+
+test('episodeProgress does not read a resolution as a part', () => {
+	const p = episodeProgress(['S01E01.2'], ['/dl/Show.S01E01.2160p.mkv']);
+	assert.deepEqual([...(p?.done ?? [])], []);
+});
+
+test('episodeProgress does not confuse part 2 with part 21', () => {
+	const p = episodeProgress(['S01E01.2'], ['/dl/Show.S01E01.Part.21.1080p.mkv']);
+	assert.deepEqual([...(p?.done ?? [])], []);
+});
+
+test('episodeProgress mixes part-ful and part-less codes in one job', () => {
+	const p = episodeProgress(
+		['S01E01.1', 'S01E01.2', 'S01E02'],
+		['/dl/Show.S01E01.Part.1.mkv', '/dl/Show.S01E02.mkv']
+	);
+	assert.deepEqual([...(p?.done ?? [])], ['S01E01.1', 'S01E02']);
+	assert.equal(p?.current, 'S01E01.2');
 });
 
 test('episodeProgress handles no wanted list and full completion', () => {

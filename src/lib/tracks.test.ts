@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { Title, Tracks } from './api/types.ts';
-import { summarize, wantedCode } from './tracks.ts';
+import { hasParts, isEpisodic, summarize, wantedCode } from './tracks.ts';
 
 const title = (over: Partial<Title>): Title => ({
 	type: 'episode',
@@ -22,6 +22,29 @@ test('wantedCode pads season + episode', () => {
 
 test('wantedCode is null for movies', () => {
 	assert.equal(wantedCode(title({ type: 'movie', season: null, number: null })), null);
+});
+
+test('wantedCode ignores an absent part', () => {
+	const t = title({ season: 1, number: 1 });
+	assert.equal('part' in t, false);
+	assert.equal(wantedCode(t), 'S01E01');
+	assert.equal(wantedCode(title({ season: 1, number: 1, part: null })), 'S01E01');
+});
+
+test('wantedCode appends the selection-syntax part suffix', () => {
+	assert.equal(wantedCode(title({ season: 1, number: 1, part: 2 })), 'S01E01.2');
+	assert.equal(wantedCode(title({ season: 1, number: 1, part: 10 })), 'S01E01.10');
+});
+
+test('parts of one episode get distinct codes, so keyed lists cannot collide', () => {
+	const codes = [1, 2, 3].map((p) => wantedCode(title({ season: 1, number: 1, part: p })));
+	assert.equal(new Set(codes).size, 3);
+});
+
+test('hasParts only fires when a title carries a part', () => {
+	assert.equal(hasParts([title({ season: 1, number: 1 }), title({ season: 1, number: 2 })]), false);
+	assert.equal(hasParts([title({ season: 1, number: 1, part: 1 })]), true);
+	assert.equal(isEpisodic([title({ season: 1, number: 1, part: 1 })]), true);
 });
 
 test('summarize dedupes + orders ranges best-first, heights desc', () => {

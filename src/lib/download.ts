@@ -149,6 +149,20 @@ export function buildDownloadRequest(
 	};
 }
 
+const PART_CODE = /^(.+)\.(\d+)$/;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A part selects as "S01E01.2" but lands on disk as "S01E01.Part.2", in whichever
+// separator the series template uses. Substring matching cannot work here: plain
+// "S01E01.2" also matches "S01E01.2160p".
+function outputMatcher(code: string): (upperFile: string) => boolean {
+	const up = code.toUpperCase();
+	const m = PART_CODE.exec(up);
+	if (!m) return (f) => f.includes(up);
+	const re = new RegExp(`${escapeRe(m[1])}[^0-9A-Z]*PART[^0-9A-Z]*${m[2]}(?![0-9])`);
+	return (f) => re.test(f);
+}
+
 // An episode is done once its SxxEyy code appears in an output filename.
 export function episodeProgress(
 	wanted: string[] | undefined,
@@ -156,6 +170,6 @@ export function episodeProgress(
 ): { wanted: string[]; done: Set<string>; current: string | null } | null {
 	if (!wanted?.length) return null;
 	const files = (outputFiles ?? []).map((f) => f.toUpperCase());
-	const done = new Set(wanted.filter((c) => files.some((f) => f.includes(c.toUpperCase()))));
+	const done = new Set(wanted.filter((c) => files.some(outputMatcher(c))));
 	return { wanted, done, current: wanted.find((c) => !done.has(c)) ?? null };
 }
