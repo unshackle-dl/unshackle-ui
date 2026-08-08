@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
+import { tracksQuery } from '$lib/queries';
 import { toggleIncognito, useIncognito } from '$lib/stores/incognito';
 import AccentPicker from './AccentPicker';
 import Icon, { type IconName } from './Icon';
@@ -9,6 +11,7 @@ import ThemeToggle from './ThemeToggle';
 const nav = [
 	{ href: '/', label: 'Browse', icon: 'search' },
 	{ href: '/downloads', label: 'Downloads', icon: 'download' },
+	{ href: '/tracking', label: 'Tracking', icon: 'bell' },
 	{ href: '/history', label: 'History', icon: 'history' },
 	{ href: '/settings', label: 'Settings', icon: 'settings' }
 ] as const satisfies readonly { href: string; label: string; icon: IconName }[];
@@ -16,6 +19,10 @@ const nav = [
 export default function Sidebar() {
 	const path = useRouterState({ select: (s) => s.location.pathname });
 	const incognito = useIncognito();
+	// Served by this app's own Node process, so a failure here is not the unshackle API
+	// being down; either way the badge just disappears rather than shouting.
+	const tracks = useQuery(tracksQuery);
+	const unseen = (tracks.data ?? []).reduce((n, t) => n + t.unseen, 0);
 
 	const active = (href: string) =>
 		href === '/' ? path === '/' || path.startsWith('/title') : path.startsWith(href);
@@ -55,6 +62,14 @@ export default function Sidebar() {
 					>
 						<Icon name={item.icon} size={18} />
 						{item.label}
+						{item.href === '/tracking' && unseen > 0 && (
+							<span
+								className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-accent-600 px-1.5 py-0.5 text-xs font-semibold text-white"
+								aria-label={`${unseen} new ${unseen === 1 ? 'episode' : 'episodes'}`}
+							>
+								{unseen}
+							</span>
+						)}
 					</Link>
 				))}
 			</nav>

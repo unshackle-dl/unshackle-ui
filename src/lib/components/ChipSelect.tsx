@@ -7,6 +7,10 @@ export interface ChipOption {
 	value: string;
 	label: string;
 	breakBefore?: boolean; // force this chip onto a new line (e.g. new season)
+	// Draw attention to this chip (a newly-detected episode). Marked three ways on
+	// purpose — ring, glyph and accessible name — because colour alone is no signal in
+	// dark mode, to a colour-blind reader, or on a screen reader.
+	highlight?: boolean;
 }
 
 export default function ChipSelect({
@@ -43,13 +47,18 @@ export default function ChipSelect({
 							type="button"
 							onClick={() => toggle(o.value)}
 							aria-pressed={selected.includes(o.value)}
+							aria-label={o.highlight ? `${o.label} (new)` : undefined}
+							title={o.highlight ? 'New since you last looked' : undefined}
 							className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
 								selected.includes(o.value)
 									? 'bg-accent-600 text-white'
-									: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
-							}`}
+									: o.highlight
+										? 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:hover:bg-amber-500/25'
+										: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
+							} ${o.highlight ? 'ring-1 ring-amber-500 dark:ring-amber-400' : ''}`}
 						>
 							{o.label}
+							{o.highlight && <span aria-hidden="true"> ✦</span>}
 						</button>
 					</Fragment>
 				))}

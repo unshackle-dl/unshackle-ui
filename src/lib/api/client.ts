@@ -1,4 +1,5 @@
 import { getSettings } from '$lib/config';
+import { browser } from '$lib/store';
 import type {
 	ClearFinishedResponse,
 	ConfigResponse,
@@ -34,6 +35,18 @@ export function errorMessage(e: unknown): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+	// The base URL and key come from Settings, which lives in localStorage. On the server
+	// getSettings() can only see the build-time PUBLIC_UNSHACKLE_* defaults, so a loader
+	// that runs during SSR talks to a different API than the user configured — usually
+	// answering `unauthorized`. Any route that reaches this from a loader or beforeLoad
+	// must therefore opt out of SSR with `ssr: false`, the way /title/$service/$id does.
+	// Failing loudly here is the guard that keeps the next such route from being silent.
+	if (!browser)
+		throw new ApiError(
+			0,
+			'The unshackle API is browser-only: its URL and key come from Settings. Mark this route `ssr: false`.'
+		);
+
 	const { apiUrl, apiKey } = getSettings();
 	const base = apiUrl.replace(/\/+$/, '');
 	const headers: Record<string, string> = {
