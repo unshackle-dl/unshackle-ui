@@ -1,3 +1,16 @@
+/* Indeterminate progress bar (downloads page) */
+.indeterminate {
+	animation: slide 1.2s ease-in-out infinite;
+}
+@keyframes slide {
+	from {
+		margin-left: -34%;
+	}
+	to {
+		margin-left: 100%;
+	}
+}
+
 /* Smooth theme transitions using View Transitions API */
 ::view-transition-old(root),
 ::view-transition-new(root) {

@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import adapter from '@sveltejs/adapter-static';
-import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
+import { tanstackStart } from '@tanstack/react-start/plugin/vite';
+import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 const version = JSON.parse(readFileSync('./package.json', 'utf8')).version;
@@ -22,22 +22,26 @@ try {
 }
 
 export default defineConfig({
+	// Deployed .env files name their keys PUBLIC_*, so that prefix has to be exposed too.
+	envPrefix: ['VITE_', 'PUBLIC_'],
+	// Fonts and the favicon are referenced by absolute URL, so they must be served from
+	// the web root rather than hashed as build assets.
+	publicDir: 'static',
 	define: {
 		__APP_VERSION__: JSON.stringify(version),
 		__APP_COMMIT__: JSON.stringify(commit)
 	},
+	resolve: {
+		alias: { $lib: new URL('./src/lib', import.meta.url).pathname }
+	},
 	plugins: [
 		tailwindcss(),
-		sveltekit({
-			compilerOptions: {
-				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
-				runes: ({ filename }) =>
-					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
-			},
-
-			// Thin static client (no backend). SPA fallback because all data is fetched
-			// client-side against a user-configured external API (see src/routes/+layout.ts).
-			adapter: adapter({ fallback: 'index.html' })
-		})
+		// Thin static client (no backend). SPA shell because all data is fetched in the
+		// browser against a user-configured external API (see src/lib/config.ts).
+		// The shell is emitted as index.html, the filename static hosts already expect
+		// to serve as their catch-all fallback; the plugin would otherwise name it
+		// _shell.html and every deep link would 404.
+		tanstackStart({ spa: { enabled: true, prerender: { outputPath: '/index' } } }),
+		viteReact()
 	]
 });

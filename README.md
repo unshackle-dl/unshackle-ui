@@ -14,7 +14,7 @@
 
 ---
 
-A thin browser client for [unshackle](https://github.com/unshackle-dl/unshackle). Search a service or open a title by ID/URL, pick the tracks, quality, and options you want, then start and monitor downloads, all against a running unshackle API. Built with SvelteKit + Tailwind; it ships as static files and talks to the API directly from the browser.
+A thin browser client for [unshackle](https://github.com/unshackle-dl/unshackle). Search a service or open a title by ID/URL, pick the tracks, quality, and options you want, then start and monitor downloads, all against a running unshackle API. Built with TanStack Start (Router + Query) + Tailwind; it ships as static files and talks to the API directly from the browser.
 
 ## unshackle compatibility
 

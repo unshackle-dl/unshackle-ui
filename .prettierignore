@@ -1,6 +1,8 @@
-.svelte-kit
+.output
 build
+dist
 node_modules
 package-lock.json
 static/fonts
 src/styles
+src/routeTree.gen.ts

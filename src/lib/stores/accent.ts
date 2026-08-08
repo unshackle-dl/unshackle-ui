@@ -1,5 +1,4 @@
-import { browser } from '$app/environment';
-import { writable } from 'svelte/store';
+import { browser, effect, useStore, writable } from '$lib/store';
 
 // Each accent is the 50..950 Tailwind scale, applied to --accent-* at runtime.
 const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const;
@@ -97,7 +96,7 @@ function initial(): string {
 	return localStorage.getItem('unshackle.accent') || 'blue';
 }
 
-export const accent = writable<string>(initial());
+export const accent = writable<string>(initial(), 'blue');
 
 function apply(name: string) {
 	const a = ACCENTS.find((x) => x.name === name) ?? ACCENTS[0];
@@ -106,8 +105,10 @@ function apply(name: string) {
 }
 
 if (browser) {
-	accent.subscribe((name) => {
+	effect(accent, (name) => {
 		localStorage.setItem('unshackle.accent', name);
 		apply(name);
 	});
 }
+
+export const useAccent = () => useStore(accent);

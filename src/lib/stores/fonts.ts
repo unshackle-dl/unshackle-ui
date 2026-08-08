@@ -1,5 +1,4 @@
-import { browser } from '$app/environment';
-import { writable } from 'svelte/store';
+import { browser, effect, useStore, writable } from '$lib/store';
 
 export interface Font {
 	name: string;
@@ -23,19 +22,25 @@ function initial(key: string, fallback: string): string {
 	return localStorage.getItem(key) || fallback;
 }
 
-export const sansFont = writable<string>(initial('unshackle.font.sans', 'DM Sans'));
-export const monoFont = writable<string>(initial('unshackle.font.mono', 'Geist Mono'));
+export const sansFont = writable<string>(initial('unshackle.font.sans', 'DM Sans'), 'DM Sans');
+export const monoFont = writable<string>(
+	initial('unshackle.font.mono', 'Geist Mono'),
+	'Geist Mono'
+);
 
 if (browser) {
-	sansFont.subscribe((name) => {
+	effect(sansFont, (name) => {
 		localStorage.setItem('unshackle.font.sans', name);
 		const f = SANS_FONTS.find((x) => x.name === name) ?? SANS_FONTS[0];
 		document.documentElement.style.setProperty('--font-sans', f.stack);
 	});
 
-	monoFont.subscribe((name) => {
+	effect(monoFont, (name) => {
 		localStorage.setItem('unshackle.font.mono', name);
 		const f = MONO_FONTS.find((x) => x.name === name) ?? MONO_FONTS[0];
 		document.documentElement.style.setProperty('--font-mono', f.stack);
 	});
 }
+
+export const useSansFont = () => useStore(sansFont);
+export const useMonoFont = () => useStore(monoFont);

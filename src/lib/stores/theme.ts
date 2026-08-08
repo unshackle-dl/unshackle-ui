@@ -1,5 +1,4 @@
-import { browser } from '$app/environment';
-import { writable } from 'svelte/store';
+import { browser, effect, useStore, writable } from '$lib/store';
 
 export type Theme = 'light' | 'dark';
 
@@ -10,10 +9,10 @@ function initial(): Theme {
 	return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-export const theme = writable<Theme>(initial());
+export const theme = writable<Theme>(initial(), 'dark');
 
 if (browser) {
-	theme.subscribe((t) => {
+	effect(theme, (t) => {
 		localStorage.setItem('unshackle.theme', t);
 		document.documentElement.classList.toggle('dark', t === 'dark');
 	});
@@ -22,3 +21,5 @@ if (browser) {
 export function toggleTheme() {
 	theme.update((t) => (t === 'dark' ? 'light' : 'dark'));
 }
+
+export const useTheme = () => useStore(theme);

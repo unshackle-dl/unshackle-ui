@@ -1,12 +1,13 @@
-import { browser } from '$app/environment';
-import { derived, writable } from 'svelte/store';
+import { useMemo } from 'react';
+import { browser, effect, useStore, writable } from '$lib/store';
 
 export const incognito = writable<boolean>(
-	browser && localStorage.getItem('unshackle.incognito') === '1'
+	browser && localStorage.getItem('unshackle.incognito') === '1',
+	false
 );
 
 if (browser) {
-	incognito.subscribe((on) => {
+	effect(incognito, (on) => {
 		localStorage.setItem('unshackle.incognito', on ? '1' : '0');
 		// The class drives the CSS that dots out free-text inputs, whose values can't be swapped.
 		document.documentElement.classList.toggle('incognito', on);
@@ -56,11 +57,22 @@ type Maskable = string | null | undefined;
 
 // Deterministic fake-data mappers: the same real value always shows the same fake value,
 // so a service looks identical in its filter chip and in every row.
-export const mask = derived(incognito, (on) => ({
-	service: (s: Maskable) => (on && s ? pick(FAKE_SERVICES, s) : (s ?? '')),
-	title: (s: Maskable) => (on && s ? pick(FAKE_TITLES, s) : (s ?? '')),
-	id: (s: Maskable) => (on && s ? `id-${hash(s).toString(36)}` : (s ?? '')),
-	profile: (s: Maskable) => (on && s ? pick(FAKE_PROFILES, s) : (s ?? '')),
-	// Arbitrary free text (descriptions, error output) can't be faked convincingly, so hide it.
-	text: (s: Maskable) => (on && s ? '(hidden by incognito)' : (s ?? ''))
-}));
+export function maskers(on: boolean) {
+	return {
+		service: (s: Maskable) => (on && s ? pick(FAKE_SERVICES, s) : (s ?? '')),
+		title: (s: Maskable) => (on && s ? pick(FAKE_TITLES, s) : (s ?? '')),
+		id: (s: Maskable) => (on && s ? `id-${hash(s).toString(36)}` : (s ?? '')),
+		profile: (s: Maskable) => (on && s ? pick(FAKE_PROFILES, s) : (s ?? '')),
+		// Arbitrary free text (descriptions, error output) can't be faked convincingly, so hide it.
+		text: (s: Maskable) => (on && s ? '(hidden by incognito)' : (s ?? ''))
+	};
+}
+
+export type Mask = ReturnType<typeof maskers>;
+
+export const useIncognito = () => useStore(incognito);
+
+export function useMask(): Mask {
+	const on = useIncognito();
+	return useMemo(() => maskers(on), [on]);
+}

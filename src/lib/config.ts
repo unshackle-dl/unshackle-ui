@@ -1,6 +1,4 @@
-import { browser } from '$app/environment';
-import { env } from '$env/dynamic/public';
-import { get, writable } from 'svelte/store';
+import { browser, effect, useStore, writable } from '$lib/store';
 
 export interface Settings {
 	apiUrl: string;
@@ -10,8 +8,8 @@ export interface Settings {
 const KEY = 'unshackle.settings';
 
 const defaults: Settings = {
-	apiUrl: env.PUBLIC_UNSHACKLE_API_URL || 'http://localhost:8786',
-	apiKey: env.PUBLIC_UNSHACKLE_API_KEY || ''
+	apiUrl: import.meta.env.PUBLIC_UNSHACKLE_API_URL || 'http://localhost:8786',
+	apiKey: import.meta.env.PUBLIC_UNSHACKLE_API_KEY || ''
 };
 
 function load(): Settings {
@@ -23,13 +21,15 @@ function load(): Settings {
 	}
 }
 
-export const settings = writable<Settings>(load());
+export const settings = writable<Settings>(load(), defaults);
 
 if (browser) {
-	settings.subscribe((v) => localStorage.setItem(KEY, JSON.stringify(v)));
+	effect(settings, (v) => localStorage.setItem(KEY, JSON.stringify(v)));
 }
 
 /** Non-reactive snapshot, used by the API client. */
 export function getSettings(): Settings {
-	return get(settings);
+	return settings.get();
 }
+
+export const useSettings = () => useStore(settings);
