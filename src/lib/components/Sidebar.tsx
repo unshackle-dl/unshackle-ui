@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
-import { tracksQuery } from '$lib/queries';
+import { statusQuery } from '$lib/queries';
 import { toggleIncognito, useIncognito } from '$lib/stores/incognito';
 import AccentPicker from './AccentPicker';
 import Icon, { type IconName } from './Icon';
@@ -19,10 +19,12 @@ const nav = [
 export default function Sidebar() {
 	const path = useRouterState({ select: (s) => s.location.pathname });
 	const incognito = useIncognito();
-	// Served by this app's own Node process, so a failure here is not the unshackle API
-	// being down; either way the badge just disappears rather than shouting.
-	const tracks = useQuery(tracksQuery);
-	const unseen = (tracks.data ?? []).reduce((n, t) => n + t.unseen, 0);
+	// The status route rather than the full list: it reports the same owner-filtered total
+	// in one small response, and the banner in __root already has it cached. Served by this
+	// app's own Node process, so a failure here is not the unshackle API being down; either
+	// way the badge just disappears rather than shouting.
+	const status = useQuery(statusQuery);
+	const unseen = status.data?.unseen_total ?? 0;
 
 	const active = (href: string) =>
 		href === '/' ? path === '/' || path.startsWith('/title') : path.startsWith(href);

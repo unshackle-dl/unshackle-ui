@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
+	ScanRow,
 	ScanTrigger,
 	SeedCode,
 	TrackItem,
@@ -429,6 +430,32 @@ export function beginScan(trigger: ScanTrigger, at: string): number | null {
 		)
 		.run(at, trigger);
 	return Number(res.changes) ? Number(res.lastInsertRowid) : null;
+}
+
+/** The most recent scan row, running or finished. Reported by the status route. */
+export function lastScan(): ScanRow | null {
+	const row = getDb().prepare('SELECT * FROM scan ORDER BY id DESC LIMIT 1').get() as
+		Record<string, unknown> | undefined;
+	if (!row) return null;
+	return {
+		id: Number(row.id),
+		started_at: String(row.started_at),
+		finished_at: row.finished_at == null ? null : String(row.finished_at),
+		trigger: String(row.trigger) as ScanTrigger,
+		checked: Number(row.checked ?? 0),
+		new_count: Number(row.new_count ?? 0),
+		error_count: Number(row.error_count ?? 0)
+	};
+}
+
+/**
+ * When a sweep last completed. MAX rather than "the newest row's finished_at", because
+ * the newest row may still be open — a running scan must not read as a fresh sync.
+ */
+export function lastSync(): string | null {
+	const row = getDb().prepare('SELECT MAX(finished_at) AS at FROM scan').get() as
+		{ at: string | null } | undefined;
+	return row?.at ?? null;
 }
 
 export function endScan(

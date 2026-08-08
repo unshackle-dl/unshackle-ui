@@ -72,8 +72,40 @@ TRACKING_WEBHOOK_URL=          # optional summary POST per check cycle
 ```
 
 The two halves can legitimately disagree — a browser pointed at one API while the server
-polls another. Tracked titles are scoped to the `X-Secret-Key` that created them, the same
-way unshackle scopes download jobs.
+polls another. The **Settings** page says so when they do, because background checks follow
+the server's setting whatever the browser is looking at. Tracked titles are scoped to the
+`X-Secret-Key` that created them, the same way unshackle scopes download jobs.
+
+### Webhook
+
+`TRACKING_WEBHOOK_URL` gets one JSON POST per check cycle, and only when that cycle found
+something — a twelve-episode season drop is one notification, not twelve. Delivery is
+fire-and-forget with a 10s timeout: a dead endpoint is logged and never delays or fails a
+check.
+
+```json
+{
+	"source": "unshackle-ui",
+	"scan_id": 1,
+	"trigger": "poll",
+	"finished_at": "2026-08-08T18:13:19.943Z",
+	"new_count": 12,
+	"tracks": [
+		{
+			"id": "301c9379-…",
+			"label": "Reborn Rookie",
+			"service": "VIKI",
+			"title_id": "41504c",
+			"new_codes": ["S01E01", "S01E02"]
+		}
+	],
+	"errors": []
+}
+```
+
+`new_codes` are the **service's own** episode numbering, which is what listing returns. A
+download made with a preset that sets `tvdb_order` renumbers, so these codes are for telling
+you something arrived, not for feeding back into a download.
 
 ## License
 

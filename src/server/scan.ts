@@ -8,7 +8,7 @@
 // auth handshake, loads a CDM and calls the service's live `get_titles()` for every
 // request. Fanning out would be a self-inflicted denial of service, so tracks are walked
 // one at a time with a stagger between them.
-import type { ScanTrigger, TrackRecord } from '$lib/tracking/types';
+import type { ScanTrigger, TitlePayload, TrackRecord } from '$lib/tracking/types';
 import { config } from './config';
 import {
 	activeTrackCount,
@@ -22,6 +22,8 @@ import {
 import { detectors } from './detect';
 import { correlateHistory } from './history';
 import { upstreamMessage } from './upstream';
+import type { WebhookError, WebhookTrack } from './webhook';
+import { notifyScan } from './webhook';
 
 export interface ScanTotals {
 	scan_id: number;
@@ -59,7 +61,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * with no `finished_at` — a process killed mid-sweep would otherwise wedge scanning for
  * the lifetime of the database.
  */
-function staleAfterMs(trackCount: number): number {
+export function staleAfterMs(trackCount: number): number {
 	return config.staggerMs * Math.max(trackCount, 1) + 5 * 60_000;
 }
 
@@ -94,7 +96,7 @@ export async function runScan(opts: {
 	// handle is unset; the JS event loop does the rest of the mutual exclusion for us.
 	const done = (async () => {
 		try {
-			return await sweep(id, targets);
+			return await sweep(id, opts.trigger, targets);
 		} finally {
 			if (globalThis.__unshackleScan?.scan_id === id) globalThis.__unshackleScan = undefined;
 		}
@@ -104,10 +106,19 @@ export async function runScan(opts: {
 	return handle;
 }
 
-async function sweep(id: number, targets: TrackRecord[]): Promise<ScanTotals> {
+async function sweep(
+	id: number,
+	trigger: ScanTrigger,
+	targets: TrackRecord[]
+): Promise<ScanTotals> {
 	let checked = 0;
 	let new_count = 0;
 	let error_count = 0;
+	// Accumulated for the one summary webhook at the end of the cycle. Kept here rather
+	// than re-read from sqlite afterwards: "what this cycle found" and "what is unseen
+	// right now" are different questions, and only the first belongs in a notification.
+	const found: WebhookTrack[] = [];
+	const failed: WebhookError[] = [];
 	try {
 		// Before detecting, not after: an episode downloaded since the last sweep should
 		// already read as seen by the time this scan's numbers are reported.
@@ -125,19 +136,46 @@ async function sweep(id: number, targets: TrackRecord[]): Promise<ScanTotals> {
 				if (!detect) throw new Error(`Tracking a ${track.kind} is not implemented yet.`);
 				const result = await detect(track);
 				new_count += result.added.length;
+				if (result.added.length) {
+					// `search` tracks carry a query rather than a title, and have no detector
+					// yet, so this cast only ever runs for the title-shaped kinds.
+					const payload = track.payload as Partial<TitlePayload>;
+					found.push({
+						id: track.id,
+						label: track.label,
+						service: payload.service ?? '',
+						title_id: payload.title_id ?? '',
+						new_codes: result.added
+					});
+				}
 				stampChecked(track.id, new Date().toISOString(), null);
 			} catch (e) {
 				// One dead service, one expired profile or one unsupported kind must never
 				// abort the sweep — it is recorded on the record and the next track runs.
 				error_count++;
-				stampChecked(track.id, new Date().toISOString(), upstreamMessage(e));
+				const message = upstreamMessage(e);
+				failed.push({ id: track.id, label: track.label, error: message });
+				stampChecked(track.id, new Date().toISOString(), message);
 			}
 			checked++;
 		}
 	} finally {
 		// In a finally so that even an unforeseen throw releases the cross-process lock
 		// rather than leaving it for the reaper.
-		endScan(id, { checked, new_count, error_count }, new Date().toISOString());
+		const finished_at = new Date().toISOString();
+		endScan(id, { checked, new_count, error_count }, finished_at);
+		// Once per cycle, after the row is closed so the summary describes a finished scan.
+		// notifyScan neither throws nor blocks — it decides whether there is anything worth
+		// sending and returns; sweep stays unaware of the target.
+		notifyScan({
+			source: 'unshackle-ui',
+			scan_id: id,
+			trigger,
+			finished_at,
+			new_count,
+			tracks: found,
+			errors: failed
+		});
 	}
 	return { scan_id: id, checked, new_count, error_count };
 }

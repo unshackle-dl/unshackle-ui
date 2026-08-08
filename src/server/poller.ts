@@ -11,6 +11,7 @@
 //    another poller hammering unshackle-live.
 // 3. `npm run dev` does not evaluate src/server.ts until the first HTTP request, so an
 //    idle dev server is no evidence that the poller is or is not running.
+import type { PollerMode } from '$lib/tracking/types';
 import { config } from './config';
 import { activeTrackCount } from './db';
 import { runScan } from './scan';
@@ -38,4 +39,14 @@ export function startPoller(): void {
 		runScan({ trigger: 'poll' }).catch((e) => console.error('[poller] scan failed to start:', e));
 	}, config.intervalMs);
 	console.log(`[poller] checking tracked titles every ${Math.round(config.intervalMs / 1000)}s`);
+}
+
+/**
+ * What the status route reports. `inert` is the case worth surfacing: the server will
+ * never check anything on its own, so every "last checked" on the Tracking page is only
+ * ever going to move when somebody clicks.
+ */
+export function pollerMode(): PollerMode {
+	if (!config.apiUrlFromEnv) return 'inert';
+	return globalThis.__unshacklePoller ? 'running' : 'idle';
 }

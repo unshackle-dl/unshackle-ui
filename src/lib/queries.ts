@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
+import { browser } from './store';
 import { api } from './api/client';
 import { tracking } from './tracking/client';
 
@@ -24,6 +25,16 @@ export const tracksQuery = queryOptions({
 	queryKey: ['tracking'],
 	queryFn: () => tracking.list(),
 	staleTime: 30_000
+});
+
+// Mounted app-wide (sidebar badge + stale banner), so it is the one tracking request a
+// page load always makes. `enabled: browser` is not belt and braces: __root renders on the
+// server, and a fetch of a relative path there has no origin to resolve against.
+export const statusQuery = queryOptions({
+	queryKey: ['tracking', 'status'],
+	queryFn: () => tracking.status(),
+	enabled: browser,
+	staleTime: 15_000
 });
 
 // Prefixed with the list's key on purpose: invalidating ['tracking'] refreshes both.

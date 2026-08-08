@@ -69,3 +69,41 @@ export interface SeedCode {
 	code: string;
 	title?: string | null;
 }
+
+/** One row of the `scan` table, as reported by GET /api/tracking/status. */
+export interface ScanRow {
+	id: number;
+	started_at: string;
+	/** null while the scan is still running. */
+	finished_at: string | null;
+	trigger: ScanTrigger;
+	checked: number;
+	new_count: number;
+	error_count: number;
+}
+
+/**
+ * What the poller is doing. `inert` means UNSHACKLE_API_URL was never set, so the server
+ * deliberately never polls; `idle` means it is configured but has nothing to check yet.
+ */
+export type PollerMode = 'running' | 'idle' | 'inert';
+
+/** GET /api/tracking/status. Drives the sidebar badge, the stale-kick banner and Settings. */
+export interface TrackingStatus {
+	running: boolean;
+	running_since: string | null;
+	/** When the last scan finished, or null if none ever has. */
+	last_sync: string | null;
+	interval_ms: number;
+	/** Nothing has swept in an interval, so the browser should offer to kick one off. */
+	stale: boolean;
+	tracks: number;
+	unseen_total: number;
+	poller: PollerMode;
+	last_scan: ScanRow | null;
+	/**
+	 * The HOST the server polls — never the full URL and never the key. It exists purely
+	 * so the browser can notice that its own Settings point somewhere else.
+	 */
+	api_url: string;
+}

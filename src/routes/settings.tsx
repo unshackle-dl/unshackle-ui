@@ -8,6 +8,7 @@ import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import Icon from '$lib/components/Icon';
 import { settings, useSettings } from '$lib/config';
+import { statusQuery } from '$lib/queries';
 import {
 	MONO_FONTS,
 	monoFont,
@@ -30,6 +31,15 @@ function formatBytes(n: number): string {
 		i++;
 	}
 	return `${v.toFixed(1)} ${units[i]}`;
+}
+
+/** Host, or empty when the value is not a URL at all. */
+function hostOf(url: string): string {
+	try {
+		return new URL(url).host;
+	} catch {
+		return '';
+	}
 }
 
 type MaintState =
@@ -72,6 +82,18 @@ function SettingsPage() {
 	// Server config + environment checks; sections stay hidden until these load.
 	const server = useQuery({ queryKey: ['config'], queryFn: () => api.config() });
 	const envChecks = useQuery({ queryKey: ['env-check'], queryFn: () => api.envCheck() });
+
+	// The known, accepted cost of running in server mode: the poller reads UNSHACKLE_API_URL
+	// from this app's own environment, while everything on this page uses the URL saved in
+	// this browser. They can disagree without either side being wrong, and the failure it
+	// causes is silent — background checks quietly hitting a different API than the one you
+	// are looking at. So it is surfaced rather than hidden. Host only; the server never
+	// reports its key.
+	const tracking = useQuery(statusQuery);
+	const drift =
+		tracking.data && tracking.data.poller !== 'inert' && hostOf(current.apiUrl) !== ''
+			? tracking.data.api_url !== hostOf(current.apiUrl)
+			: false;
 
 	const [ops, setOps] = useState<Record<'temp' | 'refresh', MaintState>>({
 		temp: { kind: 'idle' },
@@ -221,6 +243,32 @@ function SettingsPage() {
 								<span>{mask.text(errorMessage(test.error))}</span>
 							</div>
 						)
+					)}
+
+					{drift && tracking.data && (
+						<div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+							<Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+							<span>
+								The tracking server polls <strong>{mask.text(tracking.data.api_url)}</strong>, while
+								this browser is configured for <strong>{mask.text(hostOf(current.apiUrl))}</strong>.
+								Background checks use the server's setting (
+								<code className="font-mono">UNSHACKLE_API_URL</code> in its environment), not this
+								one — a tracked title is re-listed against the server's API, whatever this page is
+								pointed at.
+							</span>
+						</div>
+					)}
+
+					{tracking.data?.poller === 'inert' && (
+						<div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+							<Icon name="alert" size={16} className="mt-0.5 shrink-0" />
+							<span>
+								<code className="font-mono">UNSHACKLE_API_URL</code> is not set on the tracking
+								server, so it never checks tracked titles on its own. Set it in the server's
+								environment and restart; until then, only the Check buttons on the Tracking page do
+								anything.
+							</span>
+						</div>
 					)}
 				</div>
 			</Card>

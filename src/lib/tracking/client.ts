@@ -4,7 +4,14 @@
 // unshackle-live, so there is no base URL and no X-Secret-Key. Deliberately NOT routed
 // through $lib/api/client, which prefixes getSettings().apiUrl and would send these
 // requests to the external API instead.
-import type { SeedCode, TrackItem, TrackPreset, TrackRecord, TrackSummary } from './types';
+import type {
+	SeedCode,
+	TrackItem,
+	TrackingStatus,
+	TrackPreset,
+	TrackRecord,
+	TrackSummary
+} from './types';
 
 export class TrackingError extends Error {
 	constructor(
@@ -71,6 +78,9 @@ export const tracking = {
 
 	get: (trackId: string) => request<TrackDetail>(`/api/tracking/${id(trackId)}`),
 
+	/** Whole-server state: counts, poll freshness and the host the server itself polls. */
+	status: () => request<TrackingStatus>('/api/tracking/status'),
+
 	// Only series exist today; the route rejects the other kinds.
 	add: (input: AddTrackInput) =>
 		post<{ track: TrackSummary }>('/api/tracking', { kind: 'series', ...input }).then(
@@ -93,10 +103,14 @@ export const tracking = {
 
 	seenAll: () => post<{ marked: number }>('/api/tracking/seen', {}).then((r) => r.marked),
 
-	/** `trackId` omitted sweeps everything active. Returns as soon as the sweep is under way. */
-	check: (trackId?: string) =>
-		post<{ scan_id?: number; started?: boolean; running_since?: string }>(
-			'/api/tracking/check',
-			trackId ? { id: trackId } : {}
-		)
+	/**
+	 * `trackId` omitted sweeps everything active. Returns as soon as the sweep is under way.
+	 * `trigger` only labels the scan row, so the log can tell a button press apart from the
+	 * stale banner firing on its own.
+	 */
+	check: (trackId?: string, trigger?: 'manual' | 'stale-kick') =>
+		post<{ scan_id?: number; started?: boolean; running_since?: string }>('/api/tracking/check', {
+			...(trackId ? { id: trackId } : {}),
+			...(trigger ? { trigger } : {})
+		})
 };

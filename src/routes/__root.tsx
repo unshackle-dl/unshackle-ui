@@ -12,6 +12,7 @@ import appCss from '../app.css?url';
 import Card from '$lib/components/Card';
 import EmptyState from '$lib/components/EmptyState';
 import Sidebar from '$lib/components/Sidebar';
+import TrackingBanner from '$lib/components/TrackingBanner';
 import { queryClient } from '$lib/query';
 import '$lib/stores/theme';
 import '$lib/stores/accent';
@@ -88,6 +89,10 @@ function RootLayout() {
 				<Sidebar />
 				<main className="flex-1 overflow-y-auto">
 					<div className="mx-auto max-w-6xl px-8 py-8">
+						{/* Inside QueryClientProvider, and above the page rather than floating over
+						    it: this codebase has no toast layer and does not need one. Renders
+						    nothing at all unless the server reports itself stale. */}
+						<TrackingBanner />
 						<Outlet />
 					</div>
 				</main>
