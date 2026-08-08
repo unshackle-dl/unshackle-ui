@@ -81,12 +81,18 @@ export const api = {
 		no_proxy?: boolean;
 	}) => post<SearchResponse>('/api/search', body),
 
+	// Any key beyond the transport ones below is forwarded to the service when it
+	// names one of that service's cli options (DSNP `extras`, VIKI `is_movie`,
+	// HULU `movie`, …). Many services read one in get_titles(), so omitting them
+	// makes the listed titles disagree with what a download resolves.
+	// tvdb_id / tvdb_order ride along the same way.
 	listTitles: (body: {
 		service: string;
 		title_id: string;
 		profile?: string;
 		proxy?: string;
 		no_proxy?: boolean;
+		[key: string]: unknown;
 	}) => post<{ titles: Title[] }>('/api/list-titles', body).then((r) => r.titles),
 
 	listTracks: (body: {
@@ -96,6 +102,7 @@ export const api = {
 		profile?: string;
 		proxy?: string;
 		no_proxy?: boolean;
+		[key: string]: unknown;
 	}) => post<Tracks>('/api/list-tracks', body),
 
 	download: (body: DownloadRequest) => post<DownloadJobRef>('/api/download', body),

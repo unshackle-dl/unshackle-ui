@@ -1,5 +1,8 @@
 node_modules
 
+# Local server-side data (sqlite)
+/data
+
 # Output
 .output
 .vercel

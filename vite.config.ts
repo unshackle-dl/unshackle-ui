@@ -36,12 +36,16 @@ export default defineConfig({
 	},
 	plugins: [
 		tailwindcss(),
-		// Thin static client (no backend). SPA shell because all data is fetched in the
-		// browser against a user-configured external API (see src/lib/config.ts).
-		// The shell is emitted as index.html, the filename static hosts already expect
-		// to serve as their catch-all fallback; the plugin would otherwise name it
-		// _shell.html and every deep link would 404.
-		tanstackStart({ spa: { enabled: true, prerender: { outputPath: '/index' } } }),
+		// Server mode. Tracking needs a long-lived Node process (sqlite store + poller),
+		// so the app no longer ships as a static bundle. Omitting `spa` is what selects
+		// the server output — there is no explicit "server: true" flag; `spa` is simply
+		// optional with no default. Build emits dist/client + dist/server/server.js, and
+		// there is no index.html any more; see server-runner.mjs and the README.
+		// To go back to a static build, restore
+		// `{ spa: { enabled: true, prerender: { outputPath: '/index' } } }` — that shell has
+		// to be named index.html, not the plugin's default _shell.html, or every deep link
+		// 404s on a static host.
+		tanstackStart(),
 		viteReact()
 	]
 });

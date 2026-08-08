@@ -10,7 +10,7 @@ import ChipSelect from '$lib/components/ChipSelect';
 import Icon from '$lib/components/Icon';
 import OptionForm, { type OptionValues } from '$lib/components/OptionForm';
 import { ADVANCED_FIELDS, blankAdvanced, buildDownloadRequest } from '$lib/download';
-import { blankValues, serviceFields, type Field } from '$lib/options';
+import { blankValues, coerce, serviceFields, type Field } from '$lib/options';
 import { profilesQuery, servicesQuery } from '$lib/queries';
 import { useMask } from '$lib/stores/incognito';
 import { hasParts, isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
@@ -19,15 +19,21 @@ interface TitleSearch {
 	profile?: string;
 	proxy?: string;
 	no_proxy?: boolean;
+	// Service cli options (and tvdb_id/tvdb_order) pass through untouched: which
+	// keys exist depends on the service, so they are not enumerated. This is the
+	// only channel by which they can reach the loader, which runs before the
+	// component (and its svcValues state) exists.
+	[key: string]: unknown;
 }
 
 export const Route = createFileRoute('/title/$service/$id')({
-	// ponytail: three optional fields, so no schema library.
+	// ponytail: three known optional fields plus a passthrough, so no schema library.
 	validateSearch: (search: Record<string, unknown>): TitleSearch => {
-		const out: TitleSearch = {};
-		if (search.profile) out.profile = String(search.profile);
-		if (search.proxy) out.proxy = String(search.proxy);
-		if (search.no_proxy === true || search.no_proxy === '1') out.no_proxy = true;
+		const { profile, proxy, no_proxy, ...rest } = search;
+		const out: TitleSearch = { ...rest };
+		if (profile) out.profile = String(profile);
+		if (proxy) out.proxy = String(proxy);
+		if (no_proxy === true || no_proxy === '1') out.no_proxy = true;
 		return out;
 	},
 	loaderDeps: ({ search }) => search,
@@ -37,13 +43,16 @@ export const Route = createFileRoute('/title/$service/$id')({
 	// Loaded up front so the Browse list can show per-row "opening…" feedback while
 	// this navigation is pending. Errors render inline, they are not thrown.
 	loader: async ({ params, deps }) => {
+		// Anything else in the search is a service cli option; transport keys win over it.
+		const { profile, proxy, no_proxy, ...svc } = deps;
 		try {
 			const titles = await api.listTitles({
+				...svc,
 				service: params.service,
 				title_id: params.id,
-				profile: deps.profile || undefined,
-				proxy: deps.proxy || undefined,
-				no_proxy: deps.no_proxy || undefined
+				profile: profile || undefined,
+				proxy: proxy || undefined,
+				no_proxy: no_proxy || undefined
 			});
 			return { titles, error: null as string | null };
 		} catch (e) {
@@ -156,6 +165,9 @@ function TitlePage() {
 					code: wantedCode(t),
 					title: t,
 					tracks: await api.listTracks({
+						// Same service options the download will use, so the listed tracks
+						// match what it resolves. Transport keys below win over them.
+						...coerce(svcFields, svcValues),
 						service,
 						title_id: titleId,
 						wanted: wantedCode(t) ?? undefined,
