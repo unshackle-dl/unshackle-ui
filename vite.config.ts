@@ -36,15 +36,10 @@ export default defineConfig({
 	},
 	plugins: [
 		tailwindcss(),
-		// Server mode. Tracking needs a long-lived Node process (sqlite store + poller),
-		// so the app no longer ships as a static bundle. Omitting `spa` is what selects
-		// the server output — there is no explicit "server: true" flag; `spa` is simply
-		// optional with no default. Build emits dist/client + dist/server/server.js, and
-		// there is no index.html any more; see server-runner.mjs and the README.
-		// To go back to a static build, restore
-		// `{ spa: { enabled: true, prerender: { outputPath: '/index' } } }` — that shell has
-		// to be named index.html, not the plugin's default _shell.html, or every deep link
-		// 404s on a static host.
+		// Server mode, because tracking needs a long-lived Node process (sqlite store and
+		// poller). Omitting `spa` is what selects the server output: there is no explicit
+		// "server: true" flag, `spa` is simply optional with no default. The build emits
+		// dist/client + dist/server/server.js and no index.html; see server-runner.mjs.
 		tanstackStart(),
 		viteReact()
 	]

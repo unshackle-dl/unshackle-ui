@@ -18,18 +18,17 @@ export const profilesQuery = queryOptions({
 	staleTime: 5 * 60_000
 });
 
-// The tracked list. Read by the sidebar badge on every page, so it is cached briefly —
-// but not for minutes: a background poll can add unseen episodes at any moment, and the
-// badge going stale is the one thing tracking exists to prevent.
+// The tracked list. Read by the sidebar badge on every page, so it is cached briefly, but
+// not for minutes: a background poll can add unseen episodes at any moment.
 export const tracksQuery = queryOptions({
 	queryKey: ['tracking'],
 	queryFn: () => tracking.list(),
 	staleTime: 30_000
 });
 
-// Mounted app-wide (sidebar badge + stale banner), so it is the one tracking request a
-// page load always makes. `enabled: browser` is not belt and braces: __root renders on the
-// server, and a fetch of a relative path there has no origin to resolve against.
+// Mounted app-wide (sidebar badge and stale banner), so it is the one tracking request a
+// page load always makes. `enabled: browser` because __root renders on the server, and a
+// fetch of a relative path there has no origin to resolve against.
 export const statusQuery = queryOptions({
 	queryKey: ['tracking', 'status'],
 	queryFn: () => tracking.status(),

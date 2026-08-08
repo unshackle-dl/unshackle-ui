@@ -47,8 +47,7 @@ CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 
 declare global {
 	// Dev HMR re-evaluates this module on every save. Without a globalThis guard each
-	// re-evaluation opens another handle to the same file — proven during the Phase 0
-	// spike, where the same trick was needed to stop timers stacking up.
+	// re-evaluation opens another handle to the same file.
 	var __unshackleTrackingDb: DatabaseSync | undefined;
 }
 
@@ -254,12 +253,9 @@ export function markSeen(
 	return n;
 }
 
-// ---------------------------------------------------------------------------
-// Detection and scanning.
-//
-// None of the below takes a caller: a sweep is the server acting on its own behalf,
-// not a request. Ownership is enforced at the route that *asks* for a scan, not here.
-// ---------------------------------------------------------------------------
+// Detection and scanning. None of the below takes a caller: a sweep is the server acting
+// on its own behalf, not a request. Ownership is enforced at the route that *asks* for a
+// scan, not here.
 
 function tx<T>(fn: () => T): T {
 	const db = getDb();
@@ -393,7 +389,7 @@ export function activeTrackCount(): number {
 }
 
 /**
- * Record the outcome of one track's check. `last_checked` moves even on failure —
+ * Record the outcome of one track's check. `last_checked` moves even on failure,
  * otherwise the NULLS-FIRST ordering would put the same broken record at the head of
  * every sweep forever and starve the rest.
  */
@@ -450,7 +446,7 @@ export function lastScan(): ScanRow | null {
 
 /**
  * When a sweep last completed. MAX rather than "the newest row's finished_at", because
- * the newest row may still be open — a running scan must not read as a fresh sync.
+ * the newest row may still be open, and a running scan must not read as a fresh sync.
  */
 export function lastSync(): string | null {
 	const row = getDb().prepare('SELECT MAX(finished_at) AS at FROM scan').get() as

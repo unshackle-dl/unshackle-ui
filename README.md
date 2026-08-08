@@ -16,7 +16,7 @@
 
 A browser client for [unshackle](https://github.com/unshackle-dl/unshackle). Search a service or open a title by ID/URL, pick the tracks, quality, and options you want, then start and monitor downloads, all against a running unshackle API. Built with TanStack Start (Router + Query) + Tailwind.
 
-Most of the app runs in the browser and talks to the unshackle API directly. Title tracking does not: it keeps a sqlite store and a background poller in the Node process that serves the app, so **unshackle-ui needs a Node runtime and is no longer a static site**. See [Running the built app](#running-the-built-app).
+Most of the app runs in the browser and talks to the unshackle API directly. Title tracking does not: it keeps a sqlite store and a background poller in the Node process that serves the app, so **unshackle-ui needs a Node runtime rather than a static host**. See [Running the built app](#running-the-built-app).
 
 ## unshackle compatibility
 
@@ -41,10 +41,10 @@ npm run preview  # local check of the same build; not for deployment
 
 `dist/server/server.js` exports a fetch handler, not an HTTP listener, and serves no static
 files on its own. `server-runner.mjs` (what `npm start` runs) is the small `node:http`
-process that serves `dist/client` and passes everything else to that handler. There is no
-`index.html` in the build any more, so a static host cannot serve this.
+process that serves `dist/client` and passes everything else to that handler. The build
+contains no `index.html`, so a static host cannot serve it.
 
-The process needs **`data/` to be writable and to persist across restarts** — that is where
+The process needs **`data/` to be writable and to persist across restarts**: that is where
 tracked titles live. Point `TRACKING_DB_PATH` somewhere else to move it; in a container,
 mount it as a volume or every restart loses what you were tracking.
 
@@ -71,17 +71,17 @@ TRACKING_STAGGER_MS=30000      # gap between individual checks in a sweep
 TRACKING_WEBHOOK_URL=          # optional summary POST per check cycle
 ```
 
-The two halves can legitimately disagree — a browser pointed at one API while the server
-polls another. The **Settings** page says so when they do, because background checks follow
-the server's setting whatever the browser is looking at. Tracked titles are scoped to the
+The two halves can legitimately disagree, with a browser pointed at one API while the
+server polls another. The **Settings** page says so when they do, because background checks
+follow the server's setting whatever the browser is looking at. Tracked titles are scoped to the
 `X-Secret-Key` that created them, the same way unshackle scopes download jobs.
 
 ### Webhook
 
 `TRACKING_WEBHOOK_URL` gets one JSON POST per check cycle, and only when that cycle found
-something — a twelve-episode season drop is one notification, not twelve. Delivery is
-fire-and-forget with a 10s timeout: a dead endpoint is logged and never delays or fails a
-check.
+something: a twelve-episode season drop is one notification, not twelve. Delivery is
+fire-and-forget with a 10s timeout, so a dead endpoint is logged and never delays or fails
+a check.
 
 ```json
 {

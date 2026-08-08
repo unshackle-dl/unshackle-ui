@@ -37,10 +37,9 @@ export function errorMessage(e: unknown): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	// The base URL and key come from Settings, which lives in localStorage. On the server
 	// getSettings() can only see the build-time PUBLIC_UNSHACKLE_* defaults, so a loader
-	// that runs during SSR talks to a different API than the user configured — usually
+	// that runs during SSR talks to a different API than the user configured, usually
 	// answering `unauthorized`. Any route that reaches this from a loader or beforeLoad
 	// must therefore opt out of SSR with `ssr: false`, the way /title/$service/$id does.
-	// Failing loudly here is the guard that keeps the next such route from being silent.
 	if (!browser)
 		throw new ApiError(
 			0,
@@ -94,11 +93,10 @@ export const api = {
 		no_proxy?: boolean;
 	}) => post<SearchResponse>('/api/search', body),
 
-	// Any key beyond the transport ones below is forwarded to the service when it
-	// names one of that service's cli options (DSNP `extras`, VIKI `is_movie`,
-	// HULU `movie`, …). Many services read one in get_titles(), so omitting them
-	// makes the listed titles disagree with what a download resolves.
-	// tvdb_id / tvdb_order ride along the same way.
+	// Any key beyond the transport ones below is forwarded to the service when it names one
+	// of that service's cli options (DSNP `extras`, VIKI `is_movie`, …). Many services read
+	// one in get_titles(), so omitting them makes the listed titles disagree with what a
+	// download resolves. tvdb_id / tvdb_order ride along the same way.
 	listTitles: (body: {
 		service: string;
 		title_id: string;

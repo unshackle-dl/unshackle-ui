@@ -6,7 +6,7 @@ import { callerKey } from '../server/owner';
 export const Route = createFileRoute('/api/tracking/$id/seen')({
 	server: {
 		handlers: {
-			// { codes?: string[] } — omit `codes` to clear every unseen item on the track.
+			// { codes?: string[] }. Omit `codes` to clear every unseen item on the track.
 			POST: async ({ request, params }) => {
 				const body = (await readJson(request)) ?? {};
 

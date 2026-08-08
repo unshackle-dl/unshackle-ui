@@ -90,8 +90,8 @@ function RootLayout() {
 				<main className="flex-1 overflow-y-auto">
 					<div className="mx-auto max-w-6xl px-8 py-8">
 						{/* Inside QueryClientProvider, and above the page rather than floating over
-						    it: this codebase has no toast layer and does not need one. Renders
-						    nothing at all unless the server reports itself stale. */}
+						    it: this codebase has no toast layer. Renders nothing unless the server
+						    reports itself stale. */}
 						<TrackingBanner />
 						<Outlet />
 					</div>

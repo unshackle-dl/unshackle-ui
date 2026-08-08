@@ -31,7 +31,7 @@ test('nothing to report when the listing is unchanged', () => {
 test('a code that stops being listed is stamped gone, never removed', () => {
 	const d = diffCodes([seen('S01E01'), seen('S01E02')], ['S01E01']);
 	assert.deepEqual(d.vanished, ['S01E02']);
-	// The row survives, so the whole point holds: it is not "added" next time either.
+	// The row survives, so it is not "added" next time either.
 	assert.deepEqual(d.added, []);
 });
 
@@ -50,12 +50,12 @@ test('a gone code that returns is a return, not a new episode', () => {
 });
 
 test('a service dropping an episode and restoring it never re-flags it as new', () => {
-	// The regression this whole design exists for, walked end to end.
+	// The regression this design exists for, walked end to end.
 	let stored = [seen('S01E01'), seen('S01E02')];
 	const drop = diffCodes(stored, ['S01E01']);
 	assert.deepEqual(drop.vanished, ['S01E02']);
 
-	// Storage stamps gone_at and keeps seen_at — it never deletes.
+	// Storage stamps gone_at and keeps seen_at; it never deletes.
 	stored = [seen('S01E01'), gone('S01E02', { seen_at: '2026-01-01T00:00:00.000Z' })];
 	const back = diffCodes(stored, ['S01E01', 'S01E02']);
 	assert.deepEqual(back.added, []);

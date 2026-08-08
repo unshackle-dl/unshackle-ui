@@ -6,7 +6,7 @@ import { fail, readJson, str } from '../server/http';
 import { callerKey } from '../server/owner';
 import { startPoller } from '../server/poller';
 
-// Codes arrive from the title page, which already holds the episode list — creating a
+// Codes arrive from the title page, which already holds the episode list, so creating a
 // track normally costs zero extra list-titles calls. Both shapes are accepted so a plain
 // `["S01E01"]` works from curl.
 function seedCodes(v: unknown): SeedCode[] | null {
@@ -40,7 +40,7 @@ export const Route = createFileRoute('/api/tracking')({
 				const kind = str(body.kind) as TrackKind | null;
 				if (!kind || !TRACK_KINDS.includes(kind))
 					return fail(400, `Unknown tracking kind. Expected one of: ${TRACK_KINDS.join(', ')}.`);
-				// Storage already accepts every kind — only the detector is missing, so this
+				// Storage already accepts every kind; only the detector is missing, so this
 				// guard is the single line that relaxes when movie/search tracking lands.
 				if (kind !== 'series')
 					return fail(

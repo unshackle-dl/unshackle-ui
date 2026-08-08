@@ -1,16 +1,13 @@
 // The background check loop.
 //
-// Three constraints, all learned rather than assumed:
+// It has to be started from src/server.ts: a module-level interval in a route file does
+// not start until that route is first requested, so an idle server would silently never
+// poll. The globalThis guard is not optional either, because dev HMR re-evaluates modules
+// on every save and leaves the previous interval running, so each save would add another
+// poller hammering unshackle-live.
 //
-// 1. It must be started from src/server.ts. A module-level interval in a route file does
-//    not start until that route is first requested, so an idle server would silently
-//    never poll.
-// 2. The globalThis guard is not optional. Dev HMR re-evaluates modules on every save and
-//    leaves the previous interval running — proven during the Phase 0 spike, where two
-//    tickers ended up writing to sqlite from one pid. Without this, every file save adds
-//    another poller hammering unshackle-live.
-// 3. `npm run dev` does not evaluate src/server.ts until the first HTTP request, so an
-//    idle dev server is no evidence that the poller is or is not running.
+// `npm run dev` does not evaluate src/server.ts until the first HTTP request, so an idle
+// dev server is no evidence that the poller is or is not running.
 import type { PollerMode } from '$lib/tracking/types';
 import { config } from './config';
 import { activeTrackCount } from './db';
@@ -21,7 +18,7 @@ declare global {
 }
 
 /**
- * Idempotent. Called at boot from src/server.ts, and again when a track is created — the
+ * Idempotent. Called at boot from src/server.ts, and again when a track is created: the
  * boot call is a no-op on an empty database, and without the second call the first track
  * anyone adds would not be polled until the next restart.
  */
@@ -43,8 +40,8 @@ export function startPoller(): void {
 
 /**
  * What the status route reports. `inert` is the case worth surfacing: the server will
- * never check anything on its own, so every "last checked" on the Tracking page is only
- * ever going to move when somebody clicks.
+ * never check anything on its own, so every "last checked" on the Tracking page only
+ * moves when somebody clicks.
  */
 export function pollerMode(): PollerMode {
 	if (!config.apiUrlFromEnv) return 'inert';

@@ -3,7 +3,7 @@
 // Read from `process.env`, deliberately NOT `import.meta.env`: Vite inlines the latter
 // at build time, so a built server would carry whatever the *build* machine had rather
 // than what the deployment sets. The browser half of the app keeps its own settings in
-// localStorage (src/lib/config.ts) and the two can legitimately disagree — the poller
+// localStorage (src/lib/config.ts) and the two can legitimately disagree. The poller
 // uses these values, the browser uses its own.
 
 export interface ServerConfig {
@@ -65,7 +65,7 @@ function read(): ServerConfig {
 
 export const config: Readonly<ServerConfig> = Object.freeze(read());
 
-/** Host only — the key must never leave the server, and the URL can carry credentials. */
+/** Host only: the key must never leave the server, and the URL can carry credentials. */
 export function apiHost(): string {
 	try {
 		return new URL(config.apiUrl).host;

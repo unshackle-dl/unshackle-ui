@@ -3,8 +3,8 @@
 
 /**
  * Full param dict captured from the title page: coerced advanced options plus the
- * service's own cli options. Values are already request-shaped (numbers, arrays, bools),
- * not form strings — see src/lib/tracking/preset.ts for the conversion both ways.
+ * service's own cli options. Values are already request-shaped (numbers, arrays, bools)
+ * rather than form strings. See src/lib/tracking/preset.ts for the conversion both ways.
  */
 export type TrackPreset = Record<string, unknown>;
 
@@ -38,8 +38,8 @@ export interface TrackEnvelope {
 }
 
 /**
- * The discriminated union. `kind` + `payload` is the whole extension point: movie and
- * search tracking need a detector and a relaxed route guard, never a schema migration.
+ * The discriminated union. `kind` + `payload` is the extension point: movie and search
+ * tracking need a detector and a relaxed route guard, but no schema migration.
  */
 export type TrackRecord =
 	| (TrackEnvelope & { kind: 'series'; payload: TitlePayload })
@@ -102,8 +102,8 @@ export interface TrackingStatus {
 	poller: PollerMode;
 	last_scan: ScanRow | null;
 	/**
-	 * The HOST the server polls — never the full URL and never the key. It exists purely
-	 * so the browser can notice that its own Settings point somewhere else.
+	 * The HOST the server polls, never the full URL and never the key. It exists so the
+	 * browser can notice that its own Settings point somewhere else.
 	 */
 	api_url: string;
 }

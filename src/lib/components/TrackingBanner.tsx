@@ -1,18 +1,13 @@
 // The stale-kick banner: when nothing has swept in an interval, offer to sweep now.
 //
-// It exists because the poller only ticks while the server is up. A machine that was
-// asleep, a container that was restarted, or a deployment whose interval is longer than
-// the uptime all leave the tracked list quietly out of date, and the one thing tracking
-// must not do is be silently wrong.
+// It exists because the poller only ticks while the server is up, so a machine that was
+// asleep or a container that was restarted leaves the tracked list quietly out of date.
 //
-// Two things it deliberately does not do:
-//
-//  - It does not coordinate between tabs. Three tabs firing the same POST cost one scan:
-//    the server's two-layer re-entrancy guard answers the losers with `started: false`.
-//    Client-side coordination would be a second, weaker copy of a guard that already works.
-//  - It does not fetch on the server. __root renders during SSR, and statusQuery is
-//    `enabled: browser` for that reason; with no data this renders null, so a hard load of
-//    any page is unaffected.
+// It deliberately does not coordinate between tabs. Three tabs firing the same POST cost
+// one scan: the server's two-layer re-entrancy guard answers the losers with
+// `started: false`. It also does not fetch on the server. __root renders during SSR and
+// statusQuery is `enabled: browser` for that reason; with no data this renders null, so a
+// hard load of any page is unaffected.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { statusQuery } from '$lib/queries';
@@ -21,7 +16,7 @@ import { tracking, trackingErrorMessage } from '$lib/tracking/client';
 import Button from './Button';
 import Icon from './Icon';
 
-/** Long enough to read the sentence and hit Cancel, short enough not to be furniture. */
+/** Long enough to read the banner and hit Cancel before it fires. */
 const COUNTDOWN_S = 45;
 
 export default function TrackingBanner() {
@@ -66,15 +61,15 @@ function StaleKick({
 		}
 		const t = setTimeout(() => setLeft((n) => n - 1), 1000);
 		return () => clearTimeout(t);
-		// `fire` is intentionally not a dependency: it is recreated every render, and is
-		// only reached from the left <= 0 branch, which cannot repeat — it sets `kick`, and
+		// `fire` is intentionally not a dependency: it is recreated every render, and is only
+		// reached from the left <= 0 branch, which cannot repeat because it sets `kick` and
 		// this effect then returns early.
 	}, [kick.kind, left]);
 
 	// On success this banner usually removes itself rather than reporting back: the refetch
 	// below sees a scan running, a running server is not stale, and the whole component
-	// unmounts. That is the intended end state. The failure path is the one that has to
-	// stay on screen, and it does — nothing invalidates, so `stale` is still true.
+	// unmounts. The failure path stays on screen because nothing invalidates, so `stale` is
+	// still true.
 	async function fire() {
 		setKick({ kind: 'sending' });
 		try {
@@ -92,25 +87,24 @@ function StaleKick({
 		<div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
 			<Icon name="bell" size={16} className="shrink-0" />
 			<div className="min-w-0 flex-1">
-				{/* ponytail: counts and timestamps only, never a title — nothing here needs
-				    incognito masking because nothing here names a show. */}
+				{/* ponytail: counts and timestamps only, so nothing here needs incognito masking. */}
 				{kick.kind === 'sending' ? (
 					<span>Starting a rescan…</span>
 				) : kick.kind === 'sent' ? (
 					<span>
 						{kick.started
 							? 'Rescan started. Checks are staggered, so give it a few minutes.'
-							: 'A scan was already running — nothing new was started.'}
+							: 'A scan was already running, so nothing new was started.'}
 					</span>
 				) : kick.kind === 'error' ? (
 					<span>Could not start a rescan: {kick.message}</span>
 				) : (
 					<span>
-						Tracked titles are out of date{' '}
+						Tracked titles are out of date.{' '}
 						{lastSync ? (
-							<>— last checked {new Date(lastSync).toLocaleString()}.</>
+							<>Last checked {new Date(lastSync).toLocaleString()}.</>
 						) : (
-							<>— nothing has been checked yet.</>
+							<>Nothing has been checked yet.</>
 						)}{' '}
 						<strong>
 							Rescanning {tracks} {tracks === 1 ? 'title' : 'titles'} in {left}s

@@ -7,7 +7,7 @@ import { runScan } from '../server/scan';
 export const Route = createFileRoute('/api/tracking/check')({
 	server: {
 		handlers: {
-			// { id?: string, trigger?: 'manual' | 'stale-kick' } — omit `id` to sweep
+			// { id?: string, trigger?: 'manual' | 'stale-kick' }. Omit `id` to sweep
 			// everything active. `trigger` only labels the scan row, so the log can tell a
 			// button press apart from the banner firing on its own; anything else is
 			// ignored rather than rejected, and `poll` stays reserved for the interval.

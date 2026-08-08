@@ -1,8 +1,7 @@
-// The scan orchestrator. `runScan` is the ONLY way a check happens — the poller, the
-// manual "check now" route and the later stale-kick all call this same function, and it
-// knows nothing about which of them did. That is what keeps the trigger mechanism
-// swappable: if the in-process interval ever has to become a separate process, one file
-// changes rather than four.
+// The scan orchestrator. `runScan` is the ONLY way a check happens: the poller, the manual
+// "check now" route and the stale-kick all call this same function, and it knows nothing
+// about which of them did. That keeps the trigger mechanism swappable, so moving the
+// in-process interval into a separate process would change one file rather than four.
 //
 // Concurrency is 1, on purpose. `POST /api/list-titles` on unshackle-live does a full
 // auth handshake, loads a CDM and calls the service's live `get_titles()` for every
@@ -33,7 +32,7 @@ export interface ScanTotals {
 }
 
 export interface ScanHandle {
-	/** false when a scan was already running — nothing new was started. */
+	/** false when a scan was already running, so nothing new was started. */
 	started: boolean;
 	scan_id: number | null;
 	running_since: string | null;
@@ -58,7 +57,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * How long a scan row may stay open before it is presumed dead. A sweep is bounded by
  * one stagger per track plus however long the upstream calls take; the five minutes on
  * top is slack for the latter. Reaping matters because the cross-process guard is a row
- * with no `finished_at` — a process killed mid-sweep would otherwise wedge scanning for
+ * with no `finished_at`, so a process killed mid-sweep would otherwise wedge scanning for
  * the lifetime of the database.
  */
 export function staleAfterMs(trackCount: number): number {
@@ -70,7 +69,7 @@ export async function runScan(opts: {
 	trackId?: string;
 }): Promise<ScanHandle> {
 	// Layer 1, in-process: concurrent callers get a handle on the *same* sweep rather than
-	// starting a second one. Three browser tabs firing "check now" at once cost one scan.
+	// starting a second one. Several browser tabs firing "check now" at once cost one scan.
 	const inflight = globalThis.__unshackleScan;
 	if (inflight) return { ...inflight, started: false };
 
@@ -78,8 +77,8 @@ export async function runScan(opts: {
 
 	const at = new Date().toISOString();
 	// Layer 2, cross-process: a conditional insert that only lands when no scan row is
-	// open. Needed because layer 1 protects a single module instance and nothing more —
-	// a second Node process on the same database would sail straight past it.
+	// open. Layer 1 protects a single module instance, so a second Node process on the
+	// same database would sail straight past it.
 	const id = beginScan(opts.trigger, at);
 	if (id === null) {
 		const open = openScan();
@@ -93,7 +92,7 @@ export async function runScan(opts: {
 
 	const targets = scanTargets(opts.trackId);
 	// sweep() runs to its first await synchronously, so there is no window in which the
-	// handle is unset; the JS event loop does the rest of the mutual exclusion for us.
+	// handle is unset and a second caller could slip past layer 1.
 	const done = (async () => {
 		try {
 			return await sweep(id, opts.trigger, targets);
@@ -150,8 +149,8 @@ async function sweep(
 				}
 				stampChecked(track.id, new Date().toISOString(), null);
 			} catch (e) {
-				// One dead service, one expired profile or one unsupported kind must never
-				// abort the sweep — it is recorded on the record and the next track runs.
+				// A failed check must never abort the sweep. It is recorded on the record
+				// and the next track runs.
 				error_count++;
 				const message = upstreamMessage(e);
 				failed.push({ id: track.id, label: track.label, error: message });
@@ -164,9 +163,9 @@ async function sweep(
 		// rather than leaving it for the reaper.
 		const finished_at = new Date().toISOString();
 		endScan(id, { checked, new_count, error_count }, finished_at);
-		// Once per cycle, after the row is closed so the summary describes a finished scan.
-		// notifyScan neither throws nor blocks — it decides whether there is anything worth
-		// sending and returns; sweep stays unaware of the target.
+		// After the row is closed, so the summary describes a finished scan. notifyScan
+		// neither throws nor blocks, and decides for itself whether there is anything
+		// worth sending.
 		notifyScan({
 			source: 'unshackle-ui',
 			scan_id: id,

@@ -1,6 +1,5 @@
-// kind → detector. The registry is the extension point the discriminated union was shaped
-// for: movie and search tracking need an entry here and a relaxed guard on POST /api/tracking,
-// never a schema migration.
+// kind → detector. Adding movie or search tracking needs an entry here and a relaxed guard
+// on POST /api/tracking, not a schema migration.
 //
 // `movie` and `search` are deliberately absent. Storage already accepts them, so a record
 // of either kind can exist; runScan records that on the record's last_error and moves on

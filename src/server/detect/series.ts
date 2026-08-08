@@ -2,10 +2,9 @@
 // same episode codes the browser shows, and diff that set against what is stored.
 //
 // The diff is a *set* diff, never a count delta: a service that reorders, backfills or
-// renumbers within a season would make counts lie. Codes are produced by wantedCode()
-// from $lib/tracks — the very function the title page selects with — because the poller
-// and the browser disagreeing about what "S01E02" means is the one bug that would make
-// every later phase untrustworthy.
+// renumbers within a season would make counts lie. Codes are produced by wantedCode() from
+// $lib/tracks, the same function the title page selects with, so that the poller and the
+// browser cannot disagree about what "S01E02" means.
 import type { Title } from '$lib/api/types';
 import { wantedCode } from '$lib/tracks';
 import { buildListParams } from '$lib/tracking/preset';
@@ -17,7 +16,7 @@ import { listTitles } from '../upstream';
 export interface DetectResult {
 	/** How many episode codes the listing produced. */
 	listed: number;
-	/** Codes never seen on this track before — these are the "new episode" notifications. */
+	/** Codes never seen on this track before. These are the "new episode" notifications. */
 	added: string[];
 	/** Codes that had been marked gone and are back. Not new; see the diff rules below. */
 	returned: string[];
@@ -26,16 +25,13 @@ export interface DetectResult {
 }
 
 /**
- * The whole of the interesting logic, kept pure so it is testable without a database.
+ * Kept pure so it is testable without a database.
  *
- * Three rules, all of them load-bearing:
- *
- * 1. A code not stored at all is **new**.
- * 2. A stored code missing from the listing is **not deleted** — it is stamped `gone_at`.
- *    Services drop episodes temporarily (regional windows, re-encodes, catalogue churn).
- *    Deleting the row would make the episode arrive as brand new when it returns, which
- *    is exactly the false alarm the tracker exists to avoid.
- * 3. A gone code that is listed again is **returned**: clear `gone_at`, leave `seen_at`
+ * 1. A code not stored at all is new.
+ * 2. A stored code missing from the listing is not deleted but stamped `gone_at`.
+ *    Services drop episodes temporarily (regional windows, re-encodes, catalogue churn),
+ *    and deleting the row would make the episode arrive as brand new when it returns.
+ * 3. A gone code that is listed again is returned: clear `gone_at`, leave `seen_at`
  *    alone. If it had already been watched it stays seen; if it was still unseen it stays
  *    unseen. Either way it never becomes "new" a second time.
  */
@@ -67,17 +63,17 @@ function codesOf(titles: Title[]): Map<string, string | null> {
 
 export async function detectSeries(track: TrackRecord): Promise<DetectResult> {
 	const payload = track.payload as TitlePayload;
-	// buildListParams decides which stored keys may reach a listing call — the service's
-	// own cli options matter, the download-only ones are filtered out there, not here.
+	// buildListParams decides which stored keys may reach a listing call: the download-only
+	// ones are filtered out there, not here.
 	const titles = await listTitles(
 		buildListParams(payload, track.preset) as { service: string; title_id: string }
 	);
 	const codes = codesOf(titles);
 
 	// A listing that produces no episode codes at all, for a track that has some, is far
-	// more likely to be a service returning junk than a series being pulled in its
-	// entirety. Refusing to act on it costs one skipped cycle; acting on it would stamp
-	// every episode gone.
+	// more likely to be a service returning junk than a series being pulled entirely.
+	// Refusing to act on it costs one skipped cycle; acting on it would stamp every
+	// episode gone.
 	const stored = itemStates(track.id);
 	if (codes.size === 0 && stored.length > 0)
 		throw new Error(

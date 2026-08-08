@@ -1,11 +1,10 @@
 // Production entry: `node server-runner.mjs` (npm start).
 //
-// The build emits dist/client (static assets, no index.html any more) and
-// dist/server/server.js, which exports `{ fetch }` — a handler, not a listener, and one
-// that 404s every static asset. This is the ~50 lines that make it a real HTTP server:
-// serve dist/client first, fall through to the handler for everything else. The handler
-// SSRs unknown paths itself, so it is also the deep-link fallback; there is no index.html
-// to fall back to.
+// The build emits dist/client (static assets, no index.html) and dist/server/server.js,
+// which exports `{ fetch }`: a handler, not a listener, and one that 404s every static
+// asset. So dist/client is served first and everything else falls through to the handler.
+// The handler SSRs unknown paths itself, so it is also the deep-link fallback; there is no
+// index.html to fall back to.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';

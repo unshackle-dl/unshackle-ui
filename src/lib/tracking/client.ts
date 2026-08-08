@@ -36,7 +36,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 			headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }
 		});
 	} catch {
-		throw new TrackingError(0, 'Cannot reach this app’s server. Is it still running?');
+		throw new TrackingError(0, "Cannot reach this app's server. Is it still running?");
 	}
 
 	if (!res.ok) {

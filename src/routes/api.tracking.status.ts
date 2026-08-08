@@ -32,7 +32,7 @@ export const Route = createFileRoute('/api/tracking/status')({
 				// Strictly "nothing has swept in an interval", plus two guards the plain
 				// formula misses: with nothing tracked there is nothing to rescan, and a sweep
 				// already under way makes the offer pointless. Never having synced at all counts
-				// as stale — that is exactly the cold-start case the banner exists for.
+				// as stale: that is the cold-start case the banner exists for.
 				const stale =
 					tracks.length > 0 &&
 					!running &&

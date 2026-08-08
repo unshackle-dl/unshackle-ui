@@ -1,10 +1,9 @@
 // Whether the user has waved away the stale-rescan banner.
 //
-// Persisted rather than component state: the banner lives in the root layout and would
-// otherwise reappear on every navigation, which is the definition of a nag. What is
-// stored is the `last_sync` the dismissal applied to, not a bare flag — once a sweep
-// actually completes, last_sync moves and the dismissal no longer matches, so the banner
-// re-arms for the next time the server goes stale instead of being silenced forever.
+// Persisted rather than component state: the banner lives in the root layout, so it would
+// otherwise reappear on every navigation. What is stored is the `last_sync` the dismissal
+// applied to, so once a sweep completes, last_sync moves, the dismissal no longer matches,
+// and the banner re-arms for the next time the server goes stale.
 import { browser, effect, useStore, writable } from '$lib/store';
 
 const KEY = 'unshackle.tracking.staleDismissed';

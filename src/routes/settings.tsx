@@ -83,12 +83,11 @@ function SettingsPage() {
 	const server = useQuery({ queryKey: ['config'], queryFn: () => api.config() });
 	const envChecks = useQuery({ queryKey: ['env-check'], queryFn: () => api.envCheck() });
 
-	// The known, accepted cost of running in server mode: the poller reads UNSHACKLE_API_URL
-	// from this app's own environment, while everything on this page uses the URL saved in
-	// this browser. They can disagree without either side being wrong, and the failure it
-	// causes is silent — background checks quietly hitting a different API than the one you
-	// are looking at. So it is surfaced rather than hidden. Host only; the server never
-	// reports its key.
+	// The accepted cost of running in server mode: the poller reads UNSHACKLE_API_URL from
+	// this app's own environment, while everything on this page uses the URL saved in this
+	// browser. They can disagree without either side being wrong, and the failure is silent:
+	// background checks hitting a different API than the one you are looking at. So it is
+	// surfaced rather than hidden. Host only; the server never reports its key.
 	const tracking = useQuery(statusQuery);
 	const drift =
 		tracking.data && tracking.data.poller !== 'inert' && hostOf(current.apiUrl) !== ''
@@ -253,7 +252,7 @@ function SettingsPage() {
 								this browser is configured for <strong>{mask.text(hostOf(current.apiUrl))}</strong>.
 								Background checks use the server's setting (
 								<code className="font-mono">UNSHACKLE_API_URL</code> in its environment), not this
-								one — a tracked title is re-listed against the server's API, whatever this page is
+								one. A tracked title is re-listed against the server's API, whatever this page is
 								pointed at.
 							</span>
 						</div>

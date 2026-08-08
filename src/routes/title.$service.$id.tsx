@@ -98,7 +98,6 @@ function TitlePage() {
 
 	// Episodes picked for download (empty = all episodes). Movies stay empty.
 	const [epSel, setEpSel] = useState<string[]>([]);
-	// Snapshot of epSel at last load, to flag staleness.
 	const [loadedSel, setLoadedSel] = useState<string[]>([]);
 	const stale = JSON.stringify(epSel) !== JSON.stringify(loadedSel);
 
@@ -120,7 +119,6 @@ function TitlePage() {
 	// Named profiles for this service; undefined keeps the free-text advanced field.
 	const profiles = useQuery(profilesQuery);
 	const profileOptions = profiles.isError ? null : (profiles.data?.[service] ?? null);
-	// Drop a stale profile the service doesn't have.
 	useEffect(() => {
 		if (profileOptions && !profileOptions.includes(String(advanced.profile)))
 			setAdvanced((v) => ({ ...v, profile: '' }));
@@ -223,14 +221,12 @@ function TitlePage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [service, titleId]);
 
-	// Per-episode summaries shown in "Available tracks".
 	const episodeSummaries = trackResults.map((r) => ({
 		code: r.code,
 		name: r.title.name,
 		summary: summarize(r.tracks)
 	}));
 
-	// Combined option pool across all loaded episodes drives the download chips.
 	const combined = useMemo<TrackSummary | null>(() => {
 		if (!trackResults.length) return null;
 		const merged: Tracks = {
@@ -298,7 +294,6 @@ function TitlePage() {
 				</Card>
 			) : (
 				<>
-					{/* Row 1: Episodes + Available tracks side by side */}
 					<div
 						className={`mt-6 grid gap-6 ${
 							episodic && episodeOptions.length > 0 ? 'lg:grid-cols-2' : ''
@@ -377,7 +372,6 @@ function TitlePage() {
 							</Card>
 						)}
 
-						{/* Available tracks (per selected episode) */}
 						<Card className="p-5">
 							<div className="flex items-center justify-between">
 								<h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -457,7 +451,6 @@ function TitlePage() {
 						</Card>
 					</div>
 
-					{/* Row 2: Download (full width) */}
 					<Card className="mt-6 p-5">
 						<h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
 							Download
@@ -700,7 +693,7 @@ function TrackDialog({
 	);
 
 	// The page's episode list was fetched by the loader, which can only receive service
-	// options through the URL — and nothing writes svcValues there. So whenever the form
+	// options through the URL, and nothing writes svcValues there. So whenever the form
 	// carries service options, the list on screen may not be the list this preset
 	// produces, and seeding from it would report phantom new episodes on the first poll.
 	// Conditional, so the common case still costs zero extra list-titles calls.
@@ -744,7 +737,7 @@ function TrackDialog({
 	const entries = Object.entries(preset);
 
 	return (
-		// ponytail: a plain overlay, not a <dialog> or a focus trap — the app has no other
+		// ponytail: a plain overlay, not a <dialog> or a focus trap. The app has no other
 		// modal to justify a shared component.
 		<div
 			className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -784,7 +777,7 @@ function TrackDialog({
 					<div className="mt-1.5 flex flex-wrap gap-1.5">
 						{entries.length === 0 ? (
 							<span className="text-xs text-neutral-400 dark:text-neutral-500">
-								Nothing set — service defaults.
+								Nothing set, so service defaults apply.
 							</span>
 						) : (
 							entries.map(([k, v]) => (
@@ -819,7 +812,7 @@ function TrackDialog({
 						<Icon name="alert" size={14} className="mt-0.5 shrink-0" />
 						<span>
 							The episode list on this page was fetched without {mask.service(service)}'s own
-							options ({Object.keys(svcSet).join(', ')}) — the loader never sees them. It will be
+							options ({Object.keys(svcSet).join(', ')}), which the loader never sees. It will be
 							re-listed with the full preset before the codes are recorded, so the first check does
 							not report episodes that were never missing.
 						</span>

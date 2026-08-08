@@ -7,9 +7,9 @@ export interface ChipOption {
 	value: string;
 	label: string;
 	breakBefore?: boolean; // force this chip onto a new line (e.g. new season)
-	// Draw attention to this chip (a newly-detected episode). Marked three ways on
-	// purpose — ring, glyph and accessible name — because colour alone is no signal in
-	// dark mode, to a colour-blind reader, or on a screen reader.
+	// Draw attention to this chip (a newly-detected episode). Marked with a ring, a glyph
+	// and an accessible name, because colour alone does not reach a colour-blind reader or
+	// a screen reader.
 	highlight?: boolean;
 }
 

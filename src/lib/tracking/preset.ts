@@ -1,7 +1,7 @@
 // Preset round-tripping: the flat param dict stored on a tracked record, converted to
 // and from the title page's form state, and narrowed to what a listing call may carry.
 //
-// Pure and isomorphic — the poller and the browser must share one implementation, so this
+// Pure and isomorphic: the poller and the browser must share one implementation, so this
 // imports only $lib/options and $lib/download, both of which are type-and-logic only.
 import { ADVANCED_FIELDS, blankAdvanced } from '$lib/download';
 import { blankValues, coerce, type Field } from '$lib/options';
@@ -15,7 +15,7 @@ export interface PresetForm {
 	/** Values for the service's own cli options. */
 	svcValues: FormValues;
 	/**
-	 * Stored keys with no control in either field set — `tvdb_id` / `tvdb_order` arrive
+	 * Stored keys with no control in either field set: `tvdb_id` / `tvdb_order` arrive
 	 * through the title page's search params, and a preset captured for one service can
 	 * hold another's cli option. Carried through untouched so editing a preset in the UI
 	 * cannot silently drop them.
@@ -42,7 +42,7 @@ export const LIST_AFFECTING_KEYS: readonly string[] = ['profile', 'proxy', 'no_p
  *
  * `tvdb_order` is the sharp one. A download with it set renumbers, so replaying a detected
  * code through the stored preset can fetch a different episode than the one detected.
- * Nothing here fixes that — it is filtered out of the listing call only so the call carries
+ * Nothing here fixes that; it is filtered out of the listing call only so the call carries
  * exactly what shaped the result. Auto-download must decide explicitly what to do with it.
  */
 const INERT_KEYS = new Set(['tvdb_id', 'tvdb_order', 'tmdb_id', 'animeapi_id', 'enrich']);
@@ -59,7 +59,7 @@ const TRACK_LEVEL_KEYS = new Set(['wanted', 'quality', 'vcodec', 'range', 'a_lan
  * Build the `POST /api/list-titles` body for a tracked title.
  *
  * Keeps the transport options plus every key that is not part of the advanced download
- * catalog — those are the service's own cli options (DSNP `extras`, VIKI `is_movie`,
+ * catalog: those are the service's own cli options (DSNP `extras`, VIKI `is_movie`,
  * NOWTV `region`, …), and ~40 services read one in `get_titles()`. Omitting them makes
  * detection disagree with what a download would resolve.
  */

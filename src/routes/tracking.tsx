@@ -35,7 +35,6 @@ function TrackingPage() {
 
 	const refresh = () => queryClient.invalidateQueries({ queryKey: ['tracking'] });
 
-	// Every action is the same shape: mark busy, run, refresh, surface the failure.
 	async function run(key: string, fn: () => Promise<unknown>) {
 		setBusy(key);
 		setError(null);
@@ -49,7 +48,6 @@ function TrackingPage() {
 		}
 	}
 
-	// cli_params per service tag, so each row can build its own option form.
 	const fieldsFor = useMemo(() => {
 		const byTag = new Map((services.data ?? []).map((s) => [s.tag, s.cli_params]));
 		return (tag: string): Field[] => serviceFields(byTag.get(tag));
@@ -96,8 +94,8 @@ function TrackingPage() {
 
 			{checking && (
 				<p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
-					A check is running in the background. Sweeps are staggered on purpose — one title at a
-					time — so give it a moment and hit Refresh.
+					A check is running in the background. Sweeps are staggered on purpose, one title at a
+					time, so give it a moment and hit Refresh.
 				</p>
 			)}
 
@@ -179,7 +177,7 @@ function TrackCard({
 								// A link, never a "download the new ones" button: detection sees the
 								// service's native numbering and a download with tvdb_order set
 								// renumbers, so nothing here may replay a preset into a download.
-								// Picking the episodes on the title page is the user's own call.
+								// Picking the episodes on the title page is the user's call.
 								<Link
 									to="/title/$service/$id"
 									params={{ service: track.payload.service, id: track.payload.title_id }}
@@ -275,9 +273,9 @@ function PresetEditor({
 	onSaved: () => void;
 }) {
 	const mask = useMask();
-	// `extra` holds every stored key with no control here — tvdb_id/tvdb_order, the chip
+	// `extra` holds every stored key with no control here: tvdb_id/tvdb_order, the chip
 	// selections, and options belonging to a different service. It is state so it rides
-	// straight back into buildPreset: drop it and saving would silently delete them.
+	// straight back into buildPreset. Drop it and saving would silently delete them.
 	const [form, setForm] = useState<PresetForm>(() => applyPreset(track.preset, svcFields));
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -331,7 +329,7 @@ function PresetEditor({
 						Also stored · {extraEntries.length}
 					</p>
 					<p className="mt-0.5 text-[11px] text-neutral-400 dark:text-neutral-500">
-						No control here — chip selections and ids captured from the title page. Kept as they are
+						No control here: chip selections and ids captured from the title page. Kept as they are
 						when you save.
 					</p>
 					<div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -354,8 +352,8 @@ function PresetEditor({
 						Detection does not use it: listing never applies TVDB ordering, so every code counted
 						here is {mask.service(track.payload.service)}'s own episode numbering. A download made
 						with this preset does renumber. The two orderings can disagree, so a code detected as
-						new may not be the episode a download with that code fetches. Nothing reconciles them —
-						open the title and check the episode before you download it.
+						new may not be the episode a download with that code fetches. Nothing reconciles them,
+						so open the title and check the episode before you download it.
 					</span>
 				</div>
 			)}
