@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Badge from '$lib/components/Badge';
 import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
@@ -9,11 +9,11 @@ import Icon from '$lib/components/Icon';
 import OptionForm from '$lib/components/OptionForm';
 import { ADVANCED_FIELDS } from '$lib/download';
 import { serviceFields, type Field } from '$lib/options';
-import { servicesQuery, tracksQuery } from '$lib/queries';
+import { servicesQuery, trackingSettingsQuery, tracksQuery } from '$lib/queries';
 import { useMask } from '$lib/stores/incognito';
 import { tracking, trackingErrorMessage } from '$lib/tracking/client';
 import { applyPreset, buildPreset, type PresetForm } from '$lib/tracking/preset';
-import type { TrackSummary } from '$lib/tracking/types';
+import type { SettingSource, TrackingSettings, TrackSummary } from '$lib/tracking/types';
 
 export const Route = createFileRoute('/tracking')({ component: TrackingPage });
 
@@ -26,6 +26,7 @@ function TrackingPage() {
 
 	// Which row has its preset open. One at a time: the forms are tall.
 	const [expanded, setExpanded] = useState<string | null>(null);
+	const [showConfig, setShowConfig] = useState(false);
 	const [busy, setBusy] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [checking, setChecking] = useState(false);
@@ -89,8 +90,14 @@ function TrackingPage() {
 						<Icon name="retry" size={16} spin={tracks.isFetching} />
 						Refresh
 					</Button>
+					<Button variant="secondary" onClick={() => setShowConfig(true)}>
+						<Icon name="settings" size={16} />
+						Settings
+					</Button>
 				</div>
 			</div>
+
+			{showConfig && <ConfigModal onClose={() => setShowConfig(false)} />}
 
 			{checking && (
 				<p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
@@ -139,6 +146,282 @@ function TrackingPage() {
 				</div>
 			)}
 		</>
+	);
+}
+
+const INPUT =
+	'mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
+
+function human(ms: number): string {
+	if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
+	if (ms >= 60_000) return `${Math.round(ms / 60_000)}m`;
+	return `${Math.round(ms / 1000)}s`;
+}
+
+function SourceBadge({ source }: { source: SettingSource }) {
+	if (source === 'web') return <Badge tone="accent">set here</Badge>;
+	return <Badge tone="neutral">{source === 'env' ? 'from env' : 'default'}</Badge>;
+}
+
+type CfgKey = 'apiUrl' | 'apiKey' | 'intervalMs' | 'staggerMs' | 'webhookUrl';
+
+/**
+ * Server-side tracking configuration. Every field is stored raw in the tracking db and
+ * wins over its env var; a cleared field falls back to env. The two durations are edited
+ * in minutes and seconds and converted to ms on save, since nobody thinks in ms.
+ */
+function ConfigModal({ onClose }: { onClose: () => void }) {
+	const queryClient = useQueryClient();
+	const q = useQuery(trackingSettingsQuery);
+	// Only the keys the user touched; everything else keeps showing the server's answer.
+	const [draft, setDraft] = useState<Partial<Record<CfgKey, string>>>({});
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [saved, setSaved] = useState(false);
+
+	const s = q.data;
+	if (!s) {
+		return (
+			<Overlay onClose={onClose} label="Tracking configuration">
+				<div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+					{q.error ? (
+						<>
+							<Icon name="alert" size={16} /> {trackingErrorMessage(q.error)}
+						</>
+					) : (
+						<>
+							<Icon name="loader" size={16} spin /> Loading configuration…
+						</>
+					)}
+				</div>
+			</Overlay>
+		);
+	}
+
+	const dirty = Object.keys(draft).length > 0;
+	const edit = (k: CfgKey, v: string) => {
+		setSaved(false);
+		setDraft((d) => ({ ...d, [k]: v }));
+	};
+
+	async function save() {
+		const patch: Record<string, string | number | null> = {};
+		for (const [k, raw] of Object.entries(draft) as [CfgKey, string][]) {
+			const v = raw.trim();
+			if (v === '') {
+				patch[k] = null;
+				continue;
+			}
+			if (k === 'intervalMs' || k === 'staggerMs') {
+				const n = Number(v);
+				if (!Number.isFinite(n) || n <= 0) {
+					setError(
+						`${k === 'intervalMs' ? 'Check interval' : 'Stagger'} must be a positive number`
+					);
+					return;
+				}
+				patch[k] = Math.round(n * (k === 'intervalMs' ? 60_000 : 1000));
+			} else {
+				patch[k] = v;
+			}
+		}
+		setSaving(true);
+		setError(null);
+		try {
+			const next = await tracking.saveSettings(patch);
+			queryClient.setQueryData(trackingSettingsQuery.queryKey, next);
+			await queryClient.invalidateQueries({ queryKey: ['tracking', 'status'] });
+			setDraft({});
+			setSaved(true);
+		} catch (e) {
+			setError(trackingErrorMessage(e));
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	const field = (
+		k: CfgKey,
+		label: string,
+		opts: {
+			source: SettingSource;
+			initial: string;
+			placeholder: string;
+			hint: string;
+			type?: 'text' | 'password' | 'number';
+			redact?: boolean;
+		}
+	) => (
+		<div>
+			<div className="flex items-center gap-2">
+				<label
+					htmlFor={`cfg-${k}`}
+					className="block text-sm font-medium text-neutral-700 dark:text-neutral-200"
+				>
+					{label}
+				</label>
+				<SourceBadge source={opts.source} />
+			</div>
+			<input
+				id={`cfg-${k}`}
+				type={opts.type ?? 'text'}
+				{...(opts.type === 'number' ? { step: 'any', min: 0 } : {})}
+				value={draft[k] ?? opts.initial}
+				onChange={(e) => edit(k, e.target.value)}
+				placeholder={opts.placeholder}
+				autoComplete="off"
+				className={`${opts.redact ? 'redact ' : ''}${INPUT}`}
+			/>
+			<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{opts.hint}</p>
+		</div>
+	);
+
+	return (
+		<Overlay onClose={onClose} label="Tracking configuration">
+			<div className="flex items-start justify-between gap-3">
+				<h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
+					Tracking configuration
+				</h2>
+				<button
+					onClick={onClose}
+					aria-label="Close"
+					className="rounded-md p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+				>
+					<Icon name="x" size={18} />
+				</button>
+			</div>
+
+			<div className="mt-3">
+				{s.poller === 'inert' ? (
+					<div className="flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+						<Icon name="alert" size={14} className="mt-0.5 shrink-0" />
+						<span>
+							The poller is inert: no API URL is configured, so nothing is checked on a schedule.
+							Set one below or via <span className="font-mono">UNSHACKLE_API_URL</span>.
+						</span>
+					</div>
+				) : (
+					<p className="text-xs text-neutral-500 dark:text-neutral-400">
+						{s.poller === 'running'
+							? `Poller running: a sweep every ${human(s.interval_ms.value)}.`
+							: 'Poller idle: configured, waiting for the first active track.'}
+					</p>
+				)}
+			</div>
+
+			<div className="mt-4 grid gap-x-6 gap-y-5 md:grid-cols-2">
+				{field('apiUrl', 'API URL', {
+					source: s.api_url.source,
+					initial: s.api_url.source === 'web' ? s.api_url.value : '',
+					placeholder: s.api_url.value || 'http://localhost:8786',
+					redact: true,
+					hint: 'What the server itself polls; separate from the browser settings on the Settings page.'
+				})}
+				{field('apiKey', 'API secret key', {
+					type: 'password',
+					source: s.api_key.source,
+					initial: '',
+					placeholder: s.api_key.set ? 'configured (type to replace)' : 'not set',
+					hint: 'Sent as X-Secret-Key on poll requests. Never shown back here.'
+				})}
+				{field('intervalMs', 'Check interval (minutes)', {
+					type: 'number',
+					source: s.interval_ms.source,
+					initial: s.interval_ms.source === 'web' ? String(s.interval_ms.value / 60_000) : '',
+					placeholder: String(s.interval_ms.value / 60_000),
+					hint: `A full sweep of every tracked title, currently every ${human(s.interval_ms.value)}.`
+				})}
+				{field('staggerMs', 'Stagger between titles (seconds)', {
+					type: 'number',
+					source: s.stagger_ms.source,
+					initial: s.stagger_ms.source === 'web' ? String(s.stagger_ms.value / 1000) : '',
+					placeholder: String(s.stagger_ms.value / 1000),
+					hint: 'Gap between titles inside a sweep; re-listing is expensive upstream.'
+				})}
+				{field('webhookUrl', 'Webhook URL', {
+					source: s.webhook_url.source,
+					initial: s.webhook_url.source === 'web' ? s.webhook_url.value : '',
+					placeholder: s.webhook_url.value || 'not set',
+					redact: true,
+					hint: 'POSTed a summary whenever a sweep finds new episodes. Blank disables it.'
+				})}
+				<div>
+					<div className="flex items-center gap-2">
+						<span className="block text-sm font-medium text-neutral-700 dark:text-neutral-200">
+							Database
+						</span>
+						<Badge tone="neutral">env only</Badge>
+					</div>
+					<p className="redact mt-1.5 truncate font-mono text-sm text-neutral-500 dark:text-neutral-400">
+						{s.db_path}
+					</p>
+					<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+						The overrides on this panel live inside this file, so it stays{' '}
+						<span className="font-mono">TRACKING_DB_PATH</span>.
+					</p>
+				</div>
+			</div>
+
+			<div className="mt-5 flex flex-wrap items-center gap-3">
+				<Button onClick={save} disabled={saving || !dirty}>
+					{saving ? <Icon name="loader" size={16} spin /> : <Icon name="check" size={16} />}
+					Save configuration
+				</Button>
+				<Button
+					variant="secondary"
+					onClick={() => {
+						setDraft({});
+						setError(null);
+					}}
+					disabled={!dirty || saving}
+				>
+					Discard
+				</Button>
+				{saved && !saving && (
+					<span className="text-xs text-neutral-500 dark:text-neutral-400">
+						Saved. Applies immediately without a restart.
+					</span>
+				)}
+				{error && (
+					<span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+						<Icon name="alert" size={14} />
+						{error}
+					</span>
+				)}
+			</div>
+			<p className="mt-3 text-xs text-neutral-400 dark:text-neutral-500">
+				Values saved here are stored in the tracking database and win over the env vars; clear a
+				field and save to fall back to env.
+			</p>
+		</Overlay>
+	);
+}
+
+/** Same plain overlay as the title page's track dialog; two uses do not earn a shared modal. */
+function Overlay({
+	onClose,
+	label,
+	children
+}: {
+	onClose: () => void;
+	label: string;
+	children: ReactNode;
+}) {
+	return (
+		<div
+			className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+			onClick={onClose}
+		>
+			<div
+				role="dialog"
+				aria-modal="true"
+				aria-label={label}
+				onClick={(e) => e.stopPropagation()}
+				className="max-h-full w-full max-w-2xl overflow-y-auto rounded-xl border border-neutral-200 bg-white p-5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+			>
+				{children}
+			</div>
+		</div>
 	);
 }
 
@@ -196,6 +479,9 @@ function TrackCard({
 							<Badge tone="neutral">{track.total} episodes</Badge>
 						)}
 						{track.state !== 'active' && <Badge tone="amber">{track.state}</Badge>}
+						{track.interval_ms != null && (
+							<Badge tone="neutral">every {human(track.interval_ms)}</Badge>
+						)}
 					</div>
 					<p className="mt-1 font-mono text-xs text-neutral-400 dark:text-neutral-500">
 						{track.kind === 'search'
@@ -226,7 +512,7 @@ function TrackCard({
 					</Button>
 					<Button variant="secondary" onClick={onToggle} disabled={disabled}>
 						<Icon name="chevron" size={16} className={expanded ? 'rotate-90' : ''} />
-						Preset
+						Settings
 					</Button>
 					<Button
 						variant="danger"
@@ -277,6 +563,9 @@ function PresetEditor({
 	// selections, and options belonging to a different service. It is state so it rides
 	// straight back into buildPreset. Drop it and saving would silently delete them.
 	const [form, setForm] = useState<PresetForm>(() => applyPreset(track.preset, svcFields));
+	const [intervalMin, setIntervalMin] = useState(() =>
+		track.interval_ms == null ? '' : String(track.interval_ms / 60_000)
+	);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [saved, setSaved] = useState(false);
@@ -285,10 +574,19 @@ function PresetEditor({
 	const tvdbOrder = form.extra.tvdb_order;
 
 	async function save() {
+		let interval_ms: number | null = null;
+		if (intervalMin.trim() !== '') {
+			const n = Number(intervalMin);
+			if (!Number.isFinite(n) || n < 1) {
+				setError('Check interval must be at least 1 minute, or blank for the default.');
+				return;
+			}
+			interval_ms = Math.round(n * 60_000);
+		}
 		setSaving(true);
 		setError(null);
 		try {
-			await tracking.patch(track.id, { preset: buildPreset(form, svcFields) });
+			await tracking.patch(track.id, { preset: buildPreset(form, svcFields), interval_ms });
 			setSaved(true);
 			onSaved();
 		} catch (e) {
@@ -358,10 +656,32 @@ function PresetEditor({
 				</div>
 			)}
 
+			<div className="rounded-lg border border-neutral-200 px-3 py-2.5 dark:border-neutral-700">
+				<label
+					htmlFor={`ivl-${track.id}`}
+					className="block text-xs font-medium text-neutral-700 dark:text-neutral-200"
+				>
+					Check interval (minutes)
+				</label>
+				<input
+					id={`ivl-${track.id}`}
+					type="number"
+					step="any"
+					min={1}
+					value={intervalMin}
+					onChange={(e) => (setSaved(false), setIntervalMin(e.target.value))}
+					placeholder="server default"
+					className="mt-1.5 w-full max-w-48 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 font-mono text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+				/>
+				<p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+					Just for this title. Blank uses the server-wide interval from the Settings dialog.
+				</p>
+			</div>
+
 			<div className="flex items-center gap-3">
 				<Button onClick={save} disabled={saving}>
 					{saving ? <Icon name="loader" size={16} spin /> : <Icon name="check" size={16} />}
-					Save preset
+					Save settings
 				</Button>
 				{saved && !saving && (
 					<span className="text-xs text-neutral-500 dark:text-neutral-400">Saved.</span>

@@ -58,18 +58,24 @@ PUBLIC_UNSHACKLE_API_URL=http://localhost:8786
 PUBLIC_UNSHACKLE_API_KEY=    # leave blank when the API runs with --no-key
 ```
 
-The **server** reads its own settings from the environment at startup, because the tracking
-poller cannot see the browser's Settings page. These are read at runtime, not baked into the
+The **server** reads its own settings from the environment, because the tracking poller
+cannot see the browser's Settings page. These are read at runtime, not baked into the
 build, so one build can be pointed anywhere:
 
 ```shell
 UNSHACKLE_API_URL=http://localhost:8786
 UNSHACKLE_API_KEY=           # sent as X-Secret-Key by the poller
 TRACKING_DB_PATH=./data/tracking.db
-TRACKING_INTERVAL_MS=21600000  # sweep every 6h
+TRACKING_INTERVAL_MS=21600000  # default check interval, 6h
 TRACKING_STAGGER_MS=30000      # gap between individual checks in a sweep
 TRACKING_WEBHOOK_URL=          # optional summary POST per check cycle
 ```
+
+Everything except `TRACKING_DB_PATH` can also be edited live from the **Settings** dialog
+on the Tracking page. Values saved there live in the tracking database and win over the
+env vars, and they apply without a restart; clear a field to fall back to env. A tracked
+title can also carry its own check interval, under its own Settings panel, which replaces
+the server-wide one for that title.
 
 The two halves can legitimately disagree, with a browser pointed at one API while the
 server polls another. The **Settings** page says so when they do, because background checks

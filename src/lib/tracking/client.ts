@@ -6,8 +6,9 @@
 // requests to the external API instead.
 import type {
 	SeedCode,
-	TrackItem,
+	TrackingSettings,
 	TrackingStatus,
+	TrackItem,
 	TrackPreset,
 	TrackRecord,
 	TrackSummary
@@ -81,13 +82,25 @@ export const tracking = {
 	/** Whole-server state: counts, poll freshness and the host the server itself polls. */
 	status: () => request<TrackingStatus>('/api/tracking/status'),
 
+	settings: () => request<TrackingSettings>('/api/tracking/settings'),
+
+	/** Values set as given; null or '' reverts that key to its env value. */
+	saveSettings: (patch: Record<string, string | number | null>) =>
+		request<TrackingSettings>('/api/tracking/settings', {
+			method: 'PUT',
+			body: JSON.stringify(patch)
+		}),
+
 	// Only series exist today; the route rejects the other kinds.
 	add: (input: AddTrackInput) =>
 		post<{ track: TrackSummary }>('/api/tracking', { kind: 'series', ...input }).then(
 			(r) => r.track
 		),
 
-	patch: (trackId: string, patch: { label?: string; preset?: TrackPreset; state?: string }) =>
+	patch: (
+		trackId: string,
+		patch: { label?: string; preset?: TrackPreset; state?: string; interval_ms?: number | null }
+	) =>
 		request<{ track: TrackRecord }>(`/api/tracking/${id(trackId)}`, {
 			method: 'PATCH',
 			body: JSON.stringify(patch)

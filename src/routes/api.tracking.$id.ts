@@ -41,6 +41,16 @@ export const Route = createFileRoute('/api/tracking/$id')({
 						return fail(400, `state must be one of: ${STATES.join(', ')}.`);
 					patch.state = state as (typeof STATES)[number];
 				}
+				if (body.interval_ms !== undefined) {
+					if (body.interval_ms === null) {
+						patch.interval_ms = null;
+					} else {
+						const n = Number(body.interval_ms);
+						if (!Number.isFinite(n) || n < 60_000)
+							return fail(400, 'interval_ms must be at least 60000, or null for the default.');
+						patch.interval_ms = Math.round(n);
+					}
+				}
 
 				const track = updateTrack(params.id, callerKey(request), patch);
 				if (!track) return fail(404, NOT_FOUND);

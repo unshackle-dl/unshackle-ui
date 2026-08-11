@@ -26,7 +26,9 @@ export const Route = createFileRoute('/api/tracking/check')({
 				}
 
 				const trigger = str(body.trigger) === 'stale-kick' ? 'stale-kick' : 'manual';
-				const scan = await runScan({ trigger, trackId: id });
+				// The banner only appears for overdue titles, so a stale-kick sweeps just those.
+				// The button on the page is a person asking for a full sweep.
+				const scan = await runScan({ trigger, trackId: id, dueOnly: trigger === 'stale-kick' });
 				return scan.started
 					? Response.json({ scan_id: scan.scan_id, started: true }, { status: 202 })
 					: Response.json({ started: false, running_since: scan.running_since });

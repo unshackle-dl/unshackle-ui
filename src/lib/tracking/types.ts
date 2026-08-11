@@ -35,6 +35,8 @@ export interface TrackEnvelope {
 	added_at: string;
 	last_checked: string | null;
 	last_error: string | null;
+	/** Per-title check interval override; null uses the server-wide interval. */
+	interval_ms: number | null;
 }
 
 /**
@@ -83,10 +85,34 @@ export interface ScanRow {
 }
 
 /**
- * What the poller is doing. `inert` means UNSHACKLE_API_URL was never set, so the server
- * deliberately never polls; `idle` means it is configured but has nothing to check yet.
+ * What the poller is doing. `inert` means no API URL was configured (env or web), so the
+ * server deliberately never polls; `idle` means it is configured but has nothing to
+ * check yet.
  */
 export type PollerMode = 'running' | 'idle' | 'inert';
+
+/** Where an editable server setting's current value comes from. Web beats env beats default. */
+export type SettingSource = 'web' | 'env' | 'default';
+
+export interface SettingField<T = string> {
+	value: T;
+	source: SettingSource;
+}
+
+/**
+ * GET/PUT /api/tracking/settings. URL values sourced from env are redacted to their
+ * host, and the API key is never echoed, only whether one is set.
+ */
+export interface TrackingSettings {
+	api_url: SettingField;
+	api_key: { set: boolean; source: SettingSource };
+	interval_ms: SettingField<number>;
+	stagger_ms: SettingField<number>;
+	webhook_url: SettingField;
+	/** Env-only: the overrides above are stored inside this file. */
+	db_path: string;
+	poller: PollerMode;
+}
 
 /** GET /api/tracking/status. Drives the sidebar badge, the stale-kick banner and Settings. */
 export interface TrackingStatus {

@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS track (
   preset  TEXT NOT NULL,            -- JSON, full param dict
   state TEXT NOT NULL DEFAULT 'active',
   added_at TEXT NOT NULL, last_checked TEXT, last_error TEXT,
-  owner_key TEXT                    -- NULL = shared
+  owner_key TEXT,                   -- NULL = shared
+  interval_ms INTEGER               -- NULL = the server-wide interval
 );
 CREATE TABLE IF NOT EXISTS track_item (
   track_id TEXT NOT NULL REFERENCES track(id) ON DELETE CASCADE,
@@ -60,6 +61,13 @@ export function getDb(): DatabaseSync {
 	db.exec('PRAGMA foreign_keys = ON');
 	db.exec('PRAGMA busy_timeout = 5000');
 	db.exec(SCHEMA);
+	// CREATE TABLE IF NOT EXISTS cannot add a column to a database from before the
+	// per-title interval existed.
+	const cols = db.prepare("SELECT name FROM pragma_table_info('track')").all() as {
+		name: string;
+	}[];
+	if (!cols.some((c) => c.name === 'interval_ms'))
+		db.exec('ALTER TABLE track ADD COLUMN interval_ms INTEGER');
 	globalThis.__unshackleTrackingDb = db;
 	return db;
 }
@@ -77,6 +85,7 @@ interface TrackRow {
 	last_checked: string | null;
 	last_error: string | null;
 	owner_key: string | null;
+	interval_ms: number | null;
 }
 
 // The kind/payload pairing is enforced on insert, so the cast is safe on the way out.
@@ -90,7 +99,8 @@ function toRecord(row: TrackRow): TrackRecord {
 		state: row.state as TrackState,
 		added_at: row.added_at,
 		last_checked: row.last_checked,
-		last_error: row.last_error
+		last_error: row.last_error,
+		interval_ms: row.interval_ms == null ? null : Number(row.interval_ms)
 	} as TrackRecord;
 }
 
@@ -195,16 +205,19 @@ export interface TrackPatch {
 	label?: string;
 	preset?: TrackPreset;
 	state?: TrackState;
+	/** null clears the override back to the server-wide interval. */
+	interval_ms?: number | null;
 }
 
 export function updateTrack(id: string, caller: string, patch: TrackPatch): TrackRecord | null {
 	if (!rowFor(id, caller)) return null;
 	const sets: string[] = [];
-	const args: (string | null)[] = [];
+	const args: (string | number | null)[] = [];
 	if (patch.label !== undefined) (sets.push('label = ?'), args.push(patch.label));
 	if (patch.preset !== undefined)
 		(sets.push('preset = ?'), args.push(JSON.stringify(patch.preset)));
 	if (patch.state !== undefined) (sets.push('state = ?'), args.push(patch.state));
+	if (patch.interval_ms !== undefined) (sets.push('interval_ms = ?'), args.push(patch.interval_ms));
 	if (sets.length)
 		getDb()
 			.prepare(`UPDATE track SET ${sets.join(', ')} WHERE id = ?`)
@@ -379,6 +392,18 @@ export function scanTargets(trackId?: string): TrackRecord[] {
 					.all()
 			);
 	return found.map(toRecord);
+}
+
+/**
+ * Active tracks whose interval, their own or the server-wide one, has elapsed since the
+ * last check. Never checked counts as due, which is the cold start case.
+ */
+export function dueTargets(now = Date.now()): TrackRecord[] {
+	return scanTargets().filter(
+		(t) =>
+			t.last_checked === null ||
+			now - Date.parse(t.last_checked) >= (t.interval_ms ?? config.intervalMs)
+	);
 }
 
 export function activeTrackCount(): number {

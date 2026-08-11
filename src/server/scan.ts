@@ -12,6 +12,7 @@ import { config } from './config';
 import {
 	activeTrackCount,
 	beginScan,
+	dueTargets,
 	endScan,
 	openScan,
 	reapStaleScans,
@@ -67,6 +68,8 @@ export function staleAfterMs(trackCount: number): number {
 export async function runScan(opts: {
 	trigger: ScanTrigger;
 	trackId?: string;
+	/** Only tracks whose interval has elapsed. The poller uses this; buttons check everything. */
+	dueOnly?: boolean;
 }): Promise<ScanHandle> {
 	// Layer 1, in-process: concurrent callers get a handle on the *same* sweep rather than
 	// starting a second one. Several browser tabs firing "check now" at once cost one scan.
@@ -90,7 +93,7 @@ export async function runScan(opts: {
 		};
 	}
 
-	const targets = scanTargets(opts.trackId);
+	const targets = opts.dueOnly && !opts.trackId ? dueTargets() : scanTargets(opts.trackId);
 	// sweep() runs to its first await synchronously, so there is no window in which the
 	// handle is unset and a second caller could slip past layer 1.
 	const done = (async () => {

@@ -10,11 +10,16 @@
 // dev server is no evidence that the poller is or is not running.
 import type { PollerMode } from '$lib/tracking/types';
 import { config } from './config';
-import { activeTrackCount } from './db';
+import { activeTrackCount, dueTargets } from './db';
 import { runScan } from './scan';
+
+// The tick is fixed and cheap (one sqlite read); which titles get checked is decided per
+// tick from each track's own interval, so a changed interval needs no restart.
+const TICK_MS = 60_000;
 
 declare global {
 	var __unshacklePoller: ReturnType<typeof setInterval> | undefined;
+	var __unshacklePollerInertLogged: boolean | undefined;
 }
 
 /**
@@ -24,18 +29,35 @@ declare global {
  */
 export function startPoller(): void {
 	if (globalThis.__unshacklePoller) return;
-	if (!config.apiUrlFromEnv) {
-		console.log('[poller] inert: UNSHACKLE_API_URL is not set.');
+	if (!config.apiUrlConfigured) {
+		// Repeats on every HMR reload otherwise; the UI status route surfaces `inert` anyway.
+		if (!globalThis.__unshacklePollerInertLogged) {
+			globalThis.__unshacklePollerInertLogged = true;
+			console.log(
+				'[poller] inert: no API URL configured. Set UNSHACKLE_API_URL or add one on the Tracking page.'
+			);
+		}
 		return;
 	}
 	if (activeTrackCount() === 0) return;
 
 	globalThis.__unshacklePoller = setInterval(() => {
+		try {
+			// Checked here rather than inside runScan so a tick with nothing due writes no
+			// scan row.
+			if (dueTargets().length === 0) return;
+		} catch (e) {
+			console.error('[poller] due check failed:', e);
+			return;
+		}
 		// runScan resolves as soon as the sweep is under way; its `done` never rejects.
-		// The catch is for the guard itself failing (an unreadable database, say).
-		runScan({ trigger: 'poll' }).catch((e) => console.error('[poller] scan failed to start:', e));
-	}, config.intervalMs);
-	console.log(`[poller] checking tracked titles every ${Math.round(config.intervalMs / 1000)}s`);
+		runScan({ trigger: 'poll', dueOnly: true }).catch((e) =>
+			console.error('[poller] scan failed to start:', e)
+		);
+	}, TICK_MS);
+	console.log(
+		`[poller] running: due titles checked every minute, default interval ${Math.round(config.intervalMs / 1000)}s`
+	);
 }
 
 /**
@@ -44,6 +66,18 @@ export function startPoller(): void {
  * moves when somebody clicks.
  */
 export function pollerMode(): PollerMode {
-	if (!config.apiUrlFromEnv) return 'inert';
+	if (!config.apiUrlConfigured) return 'inert';
 	return globalThis.__unshacklePoller ? 'running' : 'idle';
+}
+
+/**
+ * Settings changed: a new interval only applies by rebuilding the setInterval, and a
+ * first-time API URL flips the poller from inert to running.
+ */
+export function restartPoller(): void {
+	if (globalThis.__unshacklePoller) {
+		clearInterval(globalThis.__unshacklePoller);
+		globalThis.__unshacklePoller = undefined;
+	}
+	startPoller();
 }

@@ -3,6 +3,7 @@ import type { TrackingStatus } from '$lib/tracking/types';
 import { apiHost, config } from '../server/config';
 import {
 	activeTrackCount,
+	dueTargets,
 	lastScan,
 	lastSync,
 	listTracks,
@@ -29,14 +30,13 @@ export const Route = createFileRoute('/api/tracking/status')({
 				const last_sync = lastSync();
 				const running = open !== null;
 
-				// Strictly "nothing has swept in an interval", plus two guards the plain
-				// formula misses: with nothing tracked there is nothing to rescan, and a sweep
-				// already under way makes the offer pointless. Never having synced at all counts
-				// as stale: that is the cold-start case the banner exists for.
+				// Overdue titles the server will not get to on its own. A running poller catches
+				// anything due within a minute, and a sweep already under way makes the offer
+				// pointless, so both suppress the banner. dueTargets honours per-title intervals,
+				// so a deliberately slow title never reads as stale.
+				const poller = pollerMode();
 				const stale =
-					tracks.length > 0 &&
-					!running &&
-					(last_sync === null || Date.now() - Date.parse(last_sync) > config.intervalMs);
+					tracks.length > 0 && !running && poller !== 'running' && dueTargets().length > 0;
 
 				const status: TrackingStatus = {
 					running,
@@ -46,7 +46,7 @@ export const Route = createFileRoute('/api/tracking/status')({
 					stale,
 					tracks: tracks.length,
 					unseen_total: tracks.reduce((n, t) => n + t.unseen, 0),
-					poller: pollerMode(),
+					poller,
 					last_scan: lastScan(),
 					// Host only. The key never leaves this process, and the configured URL can
 					// itself carry credentials.

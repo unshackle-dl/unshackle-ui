@@ -1,4 +1,5 @@
-// The stale-kick banner: when nothing has swept in an interval, offer to sweep now.
+// The stale-kick banner: when titles are overdue and the poller will not get to them,
+// offer to sweep them now.
 //
 // It exists because the poller only ticks while the server is up, so a machine that was
 // asleep or a container that was restarted leaves the tracked list quietly out of date.

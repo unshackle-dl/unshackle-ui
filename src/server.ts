@@ -13,13 +13,23 @@ import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/
 import { config } from './server/config';
 import { getDb } from './server/db';
 import { startPoller } from './server/poller';
+import { loadSettings } from './server/settings';
 
 const fetch = createStartHandler(defaultStreamHandler);
 
 // Opened eagerly so a missing or unwritable data directory fails at boot with a clear
 // stack, rather than as a 500 on whichever tracking request arrives first.
 getDb();
-console.log(`[unshackle-ui] tracking store ${config.dbPath}, upstream ${config.apiUrl}`);
+// Web-set overrides live in the db just opened, so they load between it and the poller.
+loadSettings();
+// Dev HMR re-evaluates this module on every save; log the boot line once per process.
+declare global {
+	var __unshackleBootLogged: boolean | undefined;
+}
+if (!globalThis.__unshackleBootLogged) {
+	globalThis.__unshackleBootLogged = true;
+	console.log(`[unshackle-ui] tracking store ${config.dbPath}, upstream ${config.apiUrl}`);
+}
 startPoller();
 
 export default {

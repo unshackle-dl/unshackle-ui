@@ -36,6 +36,11 @@ export const statusQuery = queryOptions({
 	staleTime: 15_000
 });
 
+export const trackingSettingsQuery = queryOptions({
+	queryKey: ['tracking', 'settings'],
+	queryFn: () => tracking.settings()
+});
+
 // Prefixed with the list's key on purpose: invalidating ['tracking'] refreshes both.
 export const trackQuery = (id: string) =>
 	queryOptions({
