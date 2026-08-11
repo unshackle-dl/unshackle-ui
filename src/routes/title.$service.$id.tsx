@@ -301,8 +301,8 @@ function TitlePage() {
 					>
 						{episodic && episodeOptions.length > 0 && (
 							<Card className="p-5">
-								<div className="flex items-center justify-between gap-3">
-									<p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+								<div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+									<p className="text-sm font-semibold whitespace-nowrap text-neutral-900 dark:text-neutral-100">
 										Episodes{' '}
 										{epSel.length === 0 ? (
 											<span className="font-normal text-neutral-400">
@@ -314,11 +314,12 @@ function TitlePage() {
 											</span>
 										)}
 									</p>
-									<div className="flex items-center gap-3 text-xs">
+									<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs [&>button]:whitespace-nowrap">
 										<button
 											type="button"
 											onClick={loadSelection}
 											disabled={tracks.isPending}
+											title="Refresh selection"
 											className={`inline-flex items-center gap-1 font-medium disabled:opacity-50 ${
 												stale
 													? 'text-accent-600 dark:text-accent-400'
@@ -326,22 +327,37 @@ function TitlePage() {
 											} hover:underline`}
 										>
 											<Icon name="loader" size={13} spin={tracks.isPending} />
-											Refresh selection
+											Refresh
 										</button>
+										{unseenCodes.size > 0 && (
+											<button
+												type="button"
+												onClick={() =>
+													setEpSel(episodeOptions.filter((o) => o.highlight).map((o) => o.value))
+												}
+												title="Select the new episodes"
+												className="font-medium text-amber-700 hover:underline dark:text-amber-300"
+											>
+												New ({unseenCodes.size})
+											</button>
+										)}
 										<button
 											type="button"
 											onClick={() => setEpSel(episodeOptions.map((o) => o.value))}
+											title="Select every episode"
 											className="font-medium text-accent-600 hover:underline dark:text-accent-400"
 										>
-											Select all
+											All
 										</button>
-										<button
-											type="button"
-											onClick={() => setEpSel([])}
-											className="font-medium text-neutral-500 hover:underline dark:text-neutral-400"
-										>
-											Clear
-										</button>
+										{epSel.length > 0 && (
+											<button
+												type="button"
+												onClick={() => setEpSel([])}
+												className="font-medium text-neutral-500 hover:underline dark:text-neutral-400"
+											>
+												Clear
+											</button>
+										)}
 									</div>
 								</div>
 								<div className="mt-3">
@@ -354,8 +370,7 @@ function TitlePage() {
 								</div>
 								{unseenCodes.size > 0 && (
 									<p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-										✦ marks the {unseenCodes.size} episode{unseenCodes.size === 1 ? '' : 's'} this
-										title has picked up since you last marked it seen.
+										✦ {unseenCodes.size} new since you last marked this title seen.
 									</p>
 								)}
 								{split && (

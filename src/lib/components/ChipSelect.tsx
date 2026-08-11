@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 
 // Reusable multi-select chip group. An empty selection makes the caller omit the
 // corresponding API filter, so the backend applies its own default. That default
@@ -29,6 +29,12 @@ export default function ChipSelect({
 	const toggle = (v: string) =>
 		onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
 
+	const firstNew = useRef<HTMLButtonElement>(null);
+	const firstNewValue = options.find((o) => o.highlight)?.value;
+	useEffect(() => {
+		firstNew.current?.scrollIntoView({ block: 'nearest' });
+	}, [firstNewValue]);
+
 	return (
 		<div>
 			{(label || emptyHint) && (
@@ -39,12 +45,14 @@ export default function ChipSelect({
 					)}
 				</p>
 			)}
-			<div className="mt-1.5 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+			{/* p-1 keeps the scroll box from clipping the ring on a highlighted chip. */}
+			<div className="mt-1 -mx-1 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto p-1">
 				{options.map((o) => (
 					<Fragment key={o.value}>
 						{o.breakBefore && <span className="basis-full" />}
 						<button
 							type="button"
+							ref={o.value === firstNewValue ? firstNew : undefined}
 							onClick={() => toggle(o.value)}
 							aria-pressed={selected.includes(o.value)}
 							aria-label={o.highlight ? `${o.label} (new)` : undefined}
