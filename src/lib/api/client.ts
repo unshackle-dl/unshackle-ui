@@ -34,6 +34,8 @@ export function errorMessage(e: unknown): string {
 	return e instanceof ApiError ? e.message : String(e);
 }
 
+const apiBase = () => getSettings().apiUrl.replace(/\/+$/, '');
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	// The base URL and key come from Settings, which lives in localStorage. On the server
 	// getSettings() can only see the build-time PUBLIC_UNSHACKLE_* defaults, so a loader
@@ -46,8 +48,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 			'The unshackle API is browser-only: its URL and key come from Settings. Mark this route `ssr: false`.'
 		);
 
-	const { apiUrl, apiKey } = getSettings();
-	const base = apiUrl.replace(/\/+$/, '');
+	const { apiKey } = getSettings();
+	const base = apiBase();
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
 		...((init?.headers as Record<string, string>) ?? {})
@@ -74,6 +76,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 	if (res.status === 204) return undefined as T;
 	return (await res.json()) as T;
+}
+
+/**
+ * URL for the per-job SSE stream. EventSource cannot set headers, so this endpoint
+ * accepts the key as a query param; a blank key must be omitted, not sent empty.
+ */
+export function jobEventsUrl(jobId: string): string {
+	const { apiKey } = getSettings();
+	const key = apiKey ? `?secret_key=${encodeURIComponent(apiKey)}` : '';
+	return `${apiBase()}/api/download/jobs/${encodeURIComponent(jobId)}/events${key}`;
 }
 
 function post<T>(path: string, body: unknown): Promise<T> {
