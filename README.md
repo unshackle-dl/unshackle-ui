@@ -10,7 +10,7 @@
   <a href="https://github.com/unshackle-dl/unshackle">unshackle</a>
 </p>
 
-<img width="1443" height="1241" alt="image" src="https://github.com/user-attachments/assets/d1e35c73-7114-444d-b6c1-55453d42838e" />
+<img width="1258" height="1006" alt="image" src="https://github.com/user-attachments/assets/28d71fdd-e8dc-4786-a114-b76e268e1129" />
 
 ---
 
