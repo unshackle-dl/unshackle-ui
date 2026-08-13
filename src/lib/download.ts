@@ -165,11 +165,13 @@ function outputMatcher(code: string): (upperFile: string) => boolean {
 
 // An episode is done once its SxxEyy code appears in an output filename.
 export function episodeProgress(
-	wanted: string[] | undefined,
+	wanted: string[] | string | undefined,
 	outputFiles: string[] | undefined
 ): { wanted: string[]; done: Set<string>; current: string | null } | null {
-	if (!wanted?.length) return null;
+	// The server may hand back `wanted` as a single string rather than a list.
+	const codes = Array.isArray(wanted) ? wanted : wanted ? [wanted] : [];
+	if (!codes.length) return null;
 	const files = (outputFiles ?? []).map((f) => f.toUpperCase());
-	const done = new Set(wanted.filter((c) => files.some(outputMatcher(c))));
-	return { wanted, done, current: wanted.find((c) => !done.has(c)) ?? null };
+	const done = new Set(codes.filter((c) => files.some(outputMatcher(c))));
+	return { wanted: codes, done, current: codes.find((c) => !done.has(c)) ?? null };
 }

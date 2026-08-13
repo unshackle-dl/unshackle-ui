@@ -1,4 +1,5 @@
 import { getSettings } from '$lib/config';
+import { browser } from '$lib/store';
 import type {
 	ClearFinishedResponse,
 	ConfigResponse,
@@ -33,9 +34,22 @@ export function errorMessage(e: unknown): string {
 	return e instanceof ApiError ? e.message : String(e);
 }
 
+const apiBase = () => getSettings().apiUrl.replace(/\/+$/, '');
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-	const { apiUrl, apiKey } = getSettings();
-	const base = apiUrl.replace(/\/+$/, '');
+	// The base URL and key come from Settings, which lives in localStorage. On the server
+	// getSettings() can only see the build-time PUBLIC_UNSHACKLE_* defaults, so a loader
+	// that runs during SSR talks to a different API than the user configured, usually
+	// answering `unauthorized`. Any route that reaches this from a loader or beforeLoad
+	// must therefore opt out of SSR with `ssr: false`, the way /title/$service/$id does.
+	if (!browser)
+		throw new ApiError(
+			0,
+			'The unshackle API is browser-only: its URL and key come from Settings. Mark this route `ssr: false`.'
+		);
+
+	const { apiKey } = getSettings();
+	const base = apiBase();
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
 		...((init?.headers as Record<string, string>) ?? {})
@@ -64,6 +78,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	return (await res.json()) as T;
 }
 
+/**
+ * URL for the per-job SSE stream. EventSource cannot set headers, so this endpoint
+ * accepts the key as a query param; a blank key must be omitted, not sent empty.
+ */
+export function jobEventsUrl(jobId: string): string {
+	const { apiKey } = getSettings();
+	const key = apiKey ? `?secret_key=${encodeURIComponent(apiKey)}` : '';
+	return `${apiBase()}/api/download/jobs/${encodeURIComponent(jobId)}/events${key}`;
+}
+
 function post<T>(path: string, body: unknown): Promise<T> {
 	return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
 }
@@ -81,12 +105,17 @@ export const api = {
 		no_proxy?: boolean;
 	}) => post<SearchResponse>('/api/search', body),
 
+	// Any key beyond the transport ones below is forwarded to the service when it names one
+	// of that service's cli options (DSNP `extras`, VIKI `is_movie`, …). Many services read
+	// one in get_titles(), so omitting them makes the listed titles disagree with what a
+	// download resolves. tvdb_id / tvdb_order ride along the same way.
 	listTitles: (body: {
 		service: string;
 		title_id: string;
 		profile?: string;
 		proxy?: string;
 		no_proxy?: boolean;
+		[key: string]: unknown;
 	}) => post<{ titles: Title[] }>('/api/list-titles', body).then((r) => r.titles),
 
 	listTracks: (body: {
@@ -96,6 +125,7 @@ export const api = {
 		profile?: string;
 		proxy?: string;
 		no_proxy?: boolean;
+		[key: string]: unknown;
 	}) => post<Tracks>('/api/list-tracks', body),
 
 	download: (body: DownloadRequest) => post<DownloadJobRef>('/api/download', body),

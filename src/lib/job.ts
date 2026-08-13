@@ -7,6 +7,7 @@ export type Tone = 'neutral' | 'accent' | 'green' | 'amber' | 'red';
 
 const ACTIVE = ['queued', 'pending', 'running', 'downloading', 'processing', 'muxing'];
 const RETRYABLE = ['failed', 'error', 'cancelled', 'canceled'];
+export const TERMINAL_EVENTS = ['completed', 'failed', 'cancelled'] as const;
 const lc = (s: string | undefined) => (s ?? '').toLowerCase();
 
 export const isActive = (status: string | undefined) => ACTIVE.includes(lc(status));

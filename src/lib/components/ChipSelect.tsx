@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 
 // Reusable multi-select chip group. An empty selection makes the caller omit the
 // corresponding API filter, so the backend applies its own default. That default
@@ -7,6 +7,10 @@ export interface ChipOption {
 	value: string;
 	label: string;
 	breakBefore?: boolean; // force this chip onto a new line (e.g. new season)
+	// Draw attention to this chip (a newly-detected episode). Marked with a ring, a glyph
+	// and an accessible name, because colour alone does not reach a colour-blind reader or
+	// a screen reader.
+	highlight?: boolean;
 }
 
 export default function ChipSelect({
@@ -25,6 +29,12 @@ export default function ChipSelect({
 	const toggle = (v: string) =>
 		onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
 
+	const firstNew = useRef<HTMLButtonElement>(null);
+	const firstNewValue = options.find((o) => o.highlight)?.value;
+	useEffect(() => {
+		firstNew.current?.scrollIntoView({ block: 'nearest' });
+	}, [firstNewValue]);
+
 	return (
 		<div>
 			{(label || emptyHint) && (
@@ -35,21 +45,28 @@ export default function ChipSelect({
 					)}
 				</p>
 			)}
-			<div className="mt-1.5 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+			{/* p-1 keeps the scroll box from clipping the ring on a highlighted chip. */}
+			<div className="mt-1 -mx-1 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto p-1">
 				{options.map((o) => (
 					<Fragment key={o.value}>
 						{o.breakBefore && <span className="basis-full" />}
 						<button
 							type="button"
+							ref={o.value === firstNewValue ? firstNew : undefined}
 							onClick={() => toggle(o.value)}
 							aria-pressed={selected.includes(o.value)}
+							aria-label={o.highlight ? `${o.label} (new)` : undefined}
+							title={o.highlight ? 'New since you last looked' : undefined}
 							className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
 								selected.includes(o.value)
 									? 'bg-accent-600 text-white'
-									: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
-							}`}
+									: o.highlight
+										? 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:hover:bg-amber-500/25'
+										: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700'
+							} ${o.highlight ? 'ring-1 ring-amber-500 dark:ring-amber-400' : ''}`}
 						>
 							{o.label}
+							{o.highlight && <span aria-hidden="true"> ✦</span>}
 						</button>
 					</Fragment>
 				))}

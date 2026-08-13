@@ -64,7 +64,10 @@ export function maskers(on: boolean) {
 		id: (s: Maskable) => (on && s ? `id-${hash(s).toString(36)}` : (s ?? '')),
 		profile: (s: Maskable) => (on && s ? pick(FAKE_PROFILES, s) : (s ?? '')),
 		// Arbitrary free text (descriptions, error output) can't be faked convincingly, so hide it.
-		text: (s: Maskable) => (on && s ? '(hidden by incognito)' : (s ?? ''))
+		text: (s: Maskable) => (on && s ? '(hidden by incognito)' : (s ?? '')),
+		// Numbers identify a title almost as well as its name; nudge them deterministically.
+		year: (n: number | null | undefined) => (on && n != null ? 1970 + (hash(`y${n}`) % 55) : n),
+		minutes: (n: number | null | undefined) => (on && n != null ? 45 + (hash(`m${n}`) % 135) : n)
 	};
 }
 

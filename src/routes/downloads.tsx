@@ -2,12 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { api, ApiError, errorMessage } from '$lib/api/client';
+import { useJobEvents } from '$lib/api/jobEvents';
 import Badge from '$lib/components/Badge';
 import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import EmptyState from '$lib/components/EmptyState';
 import Icon from '$lib/components/Icon';
-import { isFinished, isQueued, jobView } from '$lib/job';
+import { isActive, isFinished, isQueued, jobView } from '$lib/job';
 import { useMask } from '$lib/stores/incognito';
 
 export const Route = createFileRoute('/downloads')({ component: Downloads });
@@ -48,11 +49,21 @@ function Downloads() {
 				sort_order: sortOrder,
 				full: true
 			}),
-		refetchInterval: 2000,
+		refetchInterval: false,
 		placeholderData: (prev) => prev
 	});
 	const jobs = query.data ?? null;
 	const error = query.error ? errorMessage(query.error) : null;
+
+	const streaming = useJobEvents(
+		(jobs ?? []).filter((j) => isActive(j.status)).map((j) => j.job_id)
+	);
+
+	const refetch = query.refetch;
+	useEffect(() => {
+		const id = setInterval(() => void refetch(), streaming ? 10000 : 2000);
+		return () => clearInterval(id);
+	}, [streaming, refetch]);
 
 	// Services seen across polls, so the chip row survives an active service filter.
 	const [seenServices, setSeenServices] = useState<string[]>([]);
@@ -118,7 +129,9 @@ function Downloads() {
 				<div>
 					<h1 className="text-2xl font-semibold tracking-tight">Downloads</h1>
 					<p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-						Live job progress, updated every 2s.
+						{streaming
+							? 'Live job progress, streamed from the API.'
+							: 'Job progress, updated every 2s.'}
 					</p>
 				</div>
 				<div className="flex items-center gap-2">

@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
+import { statusQuery } from '$lib/queries';
 import { toggleIncognito, useIncognito } from '$lib/stores/incognito';
 import AccentPicker from './AccentPicker';
 import Icon, { type IconName } from './Icon';
@@ -8,7 +10,9 @@ import ThemeToggle from './ThemeToggle';
 // typed `to` and every route in the sidebar stops being checked.
 const nav = [
 	{ href: '/', label: 'Browse', icon: 'search' },
+	{ href: '/discover', label: 'Discover', icon: 'compass' },
 	{ href: '/downloads', label: 'Downloads', icon: 'download' },
+	{ href: '/tracking', label: 'Tracking', icon: 'bell' },
 	{ href: '/history', label: 'History', icon: 'history' },
 	{ href: '/settings', label: 'Settings', icon: 'settings' }
 ] as const satisfies readonly { href: string; label: string; icon: IconName }[];
@@ -16,9 +20,19 @@ const nav = [
 export default function Sidebar() {
 	const path = useRouterState({ select: (s) => s.location.pathname });
 	const incognito = useIncognito();
+	// The status route rather than the full list: it reports the same owner-filtered total
+	// in one small response, and the banner in __root already has it cached.
+	const status = useQuery(statusQuery);
+	const unseen = status.data?.unseen_total ?? 0;
 
+	// JustWatch detail and popular pages are reached from Browse, so they highlight it.
 	const active = (href: string) =>
-		href === '/' ? path === '/' || path.startsWith('/title') : path.startsWith(href);
+		href === '/'
+			? path === '/' ||
+				path.startsWith('/title') ||
+				path.startsWith('/browse') ||
+				path.startsWith('/popular')
+			: path.startsWith(href);
 
 	return (
 		<aside className="flex w-60 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
@@ -55,6 +69,14 @@ export default function Sidebar() {
 					>
 						<Icon name={item.icon} size={18} />
 						{item.label}
+						{item.href === '/tracking' && unseen > 0 && (
+							<span
+								className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-accent-600 px-1.5 py-0.5 text-xs font-semibold text-white"
+								aria-label={`${unseen} new ${unseen === 1 ? 'episode' : 'episodes'}`}
+							>
+								{unseen}
+							</span>
+						)}
 					</Link>
 				))}
 			</nav>
