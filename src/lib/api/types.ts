@@ -30,7 +30,8 @@ export interface Service {
 	tag: string;
 	aliases: string[];
 	geofence: string[];
-	title_regex: string[];
+	/** A bare string when the service defines a single pattern instead of a list. */
+	title_regex: string[] | string;
 	url: string;
 	help: string;
 	cli_params: CliParam[];

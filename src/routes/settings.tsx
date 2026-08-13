@@ -46,11 +46,22 @@ function SettingsPage() {
 	const queryClient = useQueryClient();
 	const current = useSettings();
 
-	const [draft, setDraft] = useState({ apiUrl: current.apiUrl, apiKey: current.apiKey });
+	const [draft, setDraft] = useState({
+		apiUrl: current.apiUrl,
+		apiKey: current.apiKey,
+		country: current.country
+	});
 	const [saved, setSaved] = useState(false);
 
 	function save() {
-		settings.set({ apiUrl: draft.apiUrl.trim(), apiKey: draft.apiKey.trim() });
+		settings.set({
+			apiUrl: draft.apiUrl.trim(),
+			apiKey: draft.apiKey.trim(),
+			// Anything that isn't a 2-letter code silently falls back to US.
+			country: /^[A-Za-z]{2}$/.test(draft.country.trim())
+				? draft.country.trim().toUpperCase()
+				: 'US'
+		});
 		// Everything cached was fetched from the old base URL / key. removeQueries, not
 		// clear(), so the in-flight "test & save" mutation that calls this survives.
 		queryClient.removeQueries();
@@ -187,12 +198,33 @@ function SettingsPage() {
 								</p>
 							</div>
 
+							<div>
+								<label
+									htmlFor="country"
+									className="block text-sm font-medium text-neutral-700 dark:text-neutral-200"
+								>
+									Country
+								</label>
+								<input
+									id="country"
+									type="text"
+									value={draft.country}
+									onChange={(e) => setDraft((d) => ({ ...d, country: e.target.value }))}
+									placeholder="US"
+									maxLength={2}
+									className="mt-1.5 w-24 rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm text-neutral-900 uppercase placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+								/>
+								<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+									2-letter code for JustWatch availability on the browse pages.
+								</p>
+							</div>
+
 							<div className="flex items-center gap-3 pt-1">
 								<Button onClick={() => test.mutate()} disabled={test.isPending}>
 									{test.isPending ? (
 										<>
 											<Icon name="loader" spin />
-											Testing…
+											Testing...
 										</>
 									) : (
 										<>

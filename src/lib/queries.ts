@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { browser } from './store';
 import { api } from './api/client';
+import { browse } from './browse/client';
 import { tracking } from './tracking/client';
 
 // Both are read from more than one page, and neither changes during a session, so the
@@ -40,6 +41,38 @@ export const trackingSettingsQuery = queryOptions({
 	queryKey: ['tracking', 'settings'],
 	queryFn: () => tracking.settings()
 });
+
+// JustWatch data, proxied by this app's server, which holds the real TTL cache; these
+// staleTimes only keep page switches from refetching.
+export const popularQuery = (country: string) =>
+	queryOptions({
+		queryKey: ['browse', 'popular', country],
+		queryFn: () => browse.popular(country),
+		enabled: browser,
+		staleTime: 30 * 60_000
+	});
+
+export const popularListQuery = (type: 'movies' | 'tv', country: string) =>
+	queryOptions({
+		queryKey: ['browse', 'popular', type, country],
+		queryFn: () => browse.popularList(type, country),
+		enabled: browser,
+		staleTime: 30 * 60_000
+	});
+
+export const browseSearchQuery = (q: string, country: string) =>
+	queryOptions({
+		queryKey: ['browse', 'search', country, q],
+		queryFn: () => browse.search(q, country),
+		staleTime: 10 * 60_000
+	});
+
+export const browseTitleQuery = (id: string, country: string) =>
+	queryOptions({
+		queryKey: ['browse', 'title', country, id],
+		queryFn: () => browse.title(id, country),
+		staleTime: 30 * 60_000
+	});
 
 // Prefixed with the list's key on purpose: invalidating ['tracking'] refreshes both.
 export const trackQuery = (id: string) =>

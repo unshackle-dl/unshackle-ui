@@ -1,4 +1,4 @@
-// Request/response helpers shared by the tracking routes.
+// Request/response helpers shared by the tracking and browse routes.
 
 /** Error bodies use `error`, the same key the unshackle API uses, so errorMessage() reads them. */
 export function fail(status: number, error: string): Response {
@@ -19,4 +19,10 @@ export async function readJson(request: Request): Promise<Record<string, unknown
 /** A non-empty trimmed string, or null. */
 export function str(v: unknown): string | null {
 	return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
+}
+
+/** Uppercased 2-letter `country` query param (default US), or null when malformed. */
+export function countryParam(request: Request): string | null {
+	const c = (new URL(request.url).searchParams.get('country') || 'US').toUpperCase();
+	return /^[A-Z]{2}$/.test(c) ? c : null;
 }

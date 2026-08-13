@@ -7,7 +7,9 @@ import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import EmptyState from '$lib/components/EmptyState';
 import Icon from '$lib/components/Icon';
-import { profilesQuery, servicesQuery } from '$lib/queries';
+import PosterGrid from '$lib/components/PosterGrid';
+import { useSettings } from '$lib/config';
+import { popularQuery, profilesQuery, servicesQuery } from '$lib/queries';
 import { useMask } from '$lib/stores/incognito';
 
 export const Route = createFileRoute('/')({ component: Browse });
@@ -80,6 +82,10 @@ function Browse() {
 
 	const canSubmit = Boolean(query.trim() && service);
 
+	// JustWatch popular titles, from this app's own server (not the unshackle API).
+	const { country } = useSettings();
+	const popular = useQuery(popularQuery(country));
+
 	return (
 		<>
 			<h1 className="text-2xl font-semibold tracking-tight">Browse</h1>
@@ -141,7 +147,7 @@ function Browse() {
 							value={query}
 							onChange={(e) => setQuery(e.target.value)}
 							type="search"
-							placeholder="Search titles, or paste a title ID / URL…"
+							placeholder="Search titles, or paste a title ID / URL..."
 							className="redact w-full rounded-lg border border-neutral-200 bg-white py-2 pr-3 pl-9 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
 						/>
 					</div>
@@ -150,7 +156,7 @@ function Browse() {
 						{search.isPending ? (
 							<>
 								<Icon name="loader" spin />
-								Searching…
+								Searching...
 							</>
 						) : (
 							'Search'
@@ -166,7 +172,7 @@ function Browse() {
 						{openDirect.isPending ? (
 							<>
 								<Icon name="loader" spin />
-								Opening…
+								Opening...
 							</>
 						) : (
 							<>
@@ -302,6 +308,39 @@ function Browse() {
 					</Card>
 				)
 			) : null}
+
+			{popular.data ? (
+				<div className="mt-10 space-y-8">
+					<section>
+						<PopularHeader label="Popular movies" type="movies" />
+						<PosterGrid titles={popular.data.movies} />
+					</section>
+					<section>
+						<PopularHeader label="Popular TV" type="tv" />
+						<PosterGrid titles={popular.data.shows} />
+					</section>
+				</div>
+			) : popular.error ? (
+				<p className="mt-10 text-sm text-neutral-400 dark:text-neutral-500">
+					Couldn't load popular titles from JustWatch.
+				</p>
+			) : null}
 		</>
+	);
+}
+
+function PopularHeader({ label, type }: { label: string; type: 'movies' | 'tv' }) {
+	return (
+		<div className="flex items-baseline gap-3">
+			<h2 className="text-lg font-semibold tracking-tight">{label}</h2>
+			<Link
+				to="/popular/$type"
+				params={{ type }}
+				className="inline-flex items-center gap-0.5 text-sm font-medium text-accent-600 hover:text-accent-700 dark:text-accent-400 dark:hover:text-accent-300"
+			>
+				All
+				<Icon name="chevron" size={16} />
+			</Link>
+		</div>
 	);
 }

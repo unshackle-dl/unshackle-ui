@@ -29,7 +29,8 @@ export function trackingErrorMessage(e: unknown): string {
 	return e instanceof TrackingError ? e.message : String(e);
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// Exported for $lib/browse/client, which talks to this app's server the same way.
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	let res: Response;
 	try {
 		res = await fetch(path, {

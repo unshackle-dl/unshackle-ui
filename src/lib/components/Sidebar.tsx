@@ -10,6 +10,7 @@ import ThemeToggle from './ThemeToggle';
 // typed `to` and every route in the sidebar stops being checked.
 const nav = [
 	{ href: '/', label: 'Browse', icon: 'search' },
+	{ href: '/discover', label: 'Discover', icon: 'compass' },
 	{ href: '/downloads', label: 'Downloads', icon: 'download' },
 	{ href: '/tracking', label: 'Tracking', icon: 'bell' },
 	{ href: '/history', label: 'History', icon: 'history' },
@@ -24,8 +25,14 @@ export default function Sidebar() {
 	const status = useQuery(statusQuery);
 	const unseen = status.data?.unseen_total ?? 0;
 
+	// JustWatch detail and popular pages are reached from Browse, so they highlight it.
 	const active = (href: string) =>
-		href === '/' ? path === '/' || path.startsWith('/title') : path.startsWith(href);
+		href === '/'
+			? path === '/' ||
+				path.startsWith('/title') ||
+				path.startsWith('/browse') ||
+				path.startsWith('/popular')
+			: path.startsWith(href);
 
 	return (
 		<aside className="flex w-60 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">

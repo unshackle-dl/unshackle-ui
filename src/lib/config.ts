@@ -3,13 +3,16 @@ import { browser, effect, useStore, writable } from '$lib/store';
 export interface Settings {
 	apiUrl: string;
 	apiKey: string;
+	/** 2-letter country for JustWatch availability on the browse pages. */
+	country: string;
 }
 
 const KEY = 'unshackle.settings';
 
 const defaults: Settings = {
 	apiUrl: import.meta.env.PUBLIC_UNSHACKLE_API_URL || 'http://localhost:8786',
-	apiKey: import.meta.env.PUBLIC_UNSHACKLE_API_KEY || ''
+	apiKey: import.meta.env.PUBLIC_UNSHACKLE_API_KEY || '',
+	country: 'US'
 };
 
 function load(): Settings {

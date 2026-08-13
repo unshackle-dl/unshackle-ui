@@ -51,4 +51,13 @@
 	html.incognito .redact {
 		-webkit-text-security: disc;
 	}
+
+	/* Images can't be value-swapped either, so blur them. Posters stay recognizable at the
+	   icon strength, so they need more. */
+	html.incognito .redact-img {
+		filter: blur(8px);
+	}
+	html.incognito .redact-poster {
+		filter: blur(12px);
+	}
 }
