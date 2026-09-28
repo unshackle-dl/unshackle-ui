@@ -158,6 +158,10 @@ export const api = {
 	retryJob: (id: string) =>
 		post<DownloadJobRef>(`/api/download/jobs/${encodeURIComponent(id)}/retry`, undefined),
 
+	// Answers the job's pending input_prompt (OTP, PIN, device-code confirmation).
+	answerJob: (id: string, response: string) =>
+		post<{ status: string }>(`/api/download/jobs/${encodeURIComponent(id)}/input`, { response }),
+
 	prioritizeJob: (id: string) =>
 		post<PriorityResponse>(`/api/download/jobs/${encodeURIComponent(id)}/priority`, undefined),
 

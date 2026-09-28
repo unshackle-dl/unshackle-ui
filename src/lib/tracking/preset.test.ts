@@ -41,7 +41,7 @@ test('buildListParams drops the keys that are inert during detection', () => {
 		tvdb_order: 'dvd',
 		tvdb_id: 1234,
 		tmdb_id: 99,
-		animeapi_id: 'mal:1',
+		anilist_id: 21,
 		enrich: true
 	});
 	assert.deepEqual(Object.keys(params).sort(), ['service', 'title_id']);

@@ -43,7 +43,10 @@ function Browse() {
 	// Proxy: a URI or country code. Geofenced services suggest their own country codes.
 	const [proxy, setProxy] = useState('');
 	const [noProxy, setNoProxy] = useState(false);
-	const geofence = serviceList.find((s) => s.tag === service)?.geofence ?? [];
+	const selected = serviceList.find((s) => s.tag === service);
+	const geofence = selected?.geofence ?? [];
+	// Older servers omit has_search; treat that as searchable.
+	const canSearch = selected?.has_search !== false;
 
 	// Search params carried through to the title page.
 	const browseSearch = {
@@ -111,7 +114,7 @@ function Browse() {
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();
-					if (canSubmit) search.mutate();
+					if (canSubmit && canSearch) search.mutate();
 				}}
 				className="mt-6 space-y-2.5"
 			>
@@ -152,7 +155,11 @@ function Browse() {
 						/>
 					</div>
 
-					<Button type="submit" disabled={search.isPending || !canSubmit}>
+					<Button
+						type="submit"
+						disabled={search.isPending || !canSubmit || !canSearch}
+						title={canSearch ? undefined : 'This service has no search; use Open with an ID or URL'}
+					>
 						{search.isPending ? (
 							<>
 								<Icon name="loader" spin />

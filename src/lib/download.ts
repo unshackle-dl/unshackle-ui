@@ -65,7 +65,25 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 			{ key: 'require_subs', type: 'csv', label: 'Require subtitle langs', placeholder: 'en, es…' },
 			{ key: 'sub_format', type: 'text', label: 'Subtitle format', placeholder: 'SRT, VTT…' },
 			{ key: 'lang', type: 'csv', label: 'Video+audio lang', placeholder: 'orig, en…' },
-			{ key: 'v_lang', type: 'csv', label: 'Video lang' }
+			{ key: 'v_lang', type: 'csv', label: 'Video lang' },
+			{
+				key: 'forced_s_lang',
+				type: 'csv',
+				label: 'Forced subtitle langs',
+				help: 'Implies forced subtitles; a - prefix excludes'
+			},
+			{
+				key: 'require_audio',
+				type: 'csv',
+				label: 'Require audio langs',
+				help: 'Fail the job if any is missing'
+			},
+			{
+				key: 'require_video',
+				type: 'csv',
+				label: 'Require video langs',
+				help: 'Fail the job if any is missing'
+			}
 		]
 	},
 	{
@@ -73,10 +91,21 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 		fields: [
 			{ key: 'profile', type: 'text', label: 'Profile' },
 			{ key: 'tag', type: 'text', label: 'Group tag' },
-			{ key: 'output_dir', type: 'text', label: 'Output directory' },
+			{
+				key: 'output_dir',
+				type: 'text',
+				label: 'Output directory',
+				help: "Relative to the server's downloads directory"
+			},
 			{ key: 'no_folder', type: 'bool', label: 'No TV folder' },
 			{ key: 'no_source', type: 'bool', label: 'No source tag' },
-			{ key: 'no_mux', type: 'bool', label: 'No mux' }
+			{ key: 'no_mux', type: 'bool', label: 'No mux' },
+			{
+				key: 'no_attachments',
+				type: 'bool',
+				label: 'No attachments',
+				help: 'Skip cover art and subtitle fonts'
+			}
 		]
 	},
 	{
@@ -84,10 +113,34 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 		fields: [
 			{ key: 'workers', type: 'int', label: 'Workers per track' },
 			{ key: 'downloads', type: 'int', label: 'Concurrent tracks' },
+			{
+				key: 'adaptive_workers',
+				type: 'bool',
+				label: 'Adaptive workers',
+				help: 'Scale segment workers to CDN throughput, up to the workers cap'
+			},
+			{
+				key: 'download_processes',
+				type: 'int',
+				label: 'Download processes',
+				help: "Split a track's segments across processes (large batches only)"
+			},
+			{
+				key: 'continue_downloads',
+				type: 'bool',
+				label: 'Resume downloads',
+				help: 'Keep finished segments and resume a failed download'
+			},
 			{ key: 'slow', type: 'text', label: 'Slow delay', placeholder: 'true or 20-40' },
 			{ key: 'skip_dl', type: 'bool', label: 'Keys only (skip download)' },
 			{ key: 'export', type: 'bool', label: 'Export manifest JSON' },
 			{ key: 'cdm_only', type: 'bool', label: 'CDM only for keys' },
+			{
+				key: 'cdm',
+				type: 'text',
+				label: 'CDM device',
+				help: 'Server CDM to license with; needs serve.cdm_overrides'
+			},
 			{ key: 'enrich', type: 'bool', label: 'Enrich title/year' }
 		]
 	},
@@ -96,7 +149,13 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 		fields: [
 			{ key: 'tmdb_id', type: 'int', label: 'TMDB ID' },
 			{ key: 'imdb_id', type: 'text', label: 'IMDB ID', placeholder: 'tt1375666' },
-			{ key: 'animeapi_id', type: 'text', label: 'AnimeAPI ID', placeholder: 'mal:12345' }
+			{ key: 'anilist_id', type: 'text', label: 'AniList ID', placeholder: '21 or mal:21' },
+			{
+				key: 'daily',
+				type: 'bool',
+				label: 'Daily episodes',
+				help: 'Fill missing air dates from TVDB (needs enrich)'
+			}
 		]
 	},
 	{
@@ -104,7 +163,13 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 		fields: [
 			{ key: 'proxy', type: 'text', label: 'Proxy', placeholder: 'URI or country code' },
 			{ key: 'no_proxy', type: 'bool', label: 'Disable proxy' },
-			{ key: 'no_proxy_download', type: 'bool', label: 'Bypass proxy for segments' }
+			{ key: 'no_proxy_download', type: 'bool', label: 'Bypass proxy for segments' },
+			{
+				key: 'proxy_download',
+				type: 'text',
+				label: 'Download proxy',
+				help: 'Segments only; manifest, license and auth use Proxy'
+			}
 		]
 	},
 	{

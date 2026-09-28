@@ -45,7 +45,7 @@ export const LIST_AFFECTING_KEYS: readonly string[] = ['profile', 'proxy', 'no_p
  * Nothing here fixes that; it is filtered out of the listing call only so the call carries
  * exactly what shaped the result. Auto-download must decide explicitly what to do with it.
  */
-const INERT_KEYS = new Set(['tvdb_id', 'tvdb_order', 'tmdb_id', 'animeapi_id', 'enrich']);
+const INERT_KEYS = new Set(['tvdb_id', 'tvdb_order', 'tmdb_id', 'anilist_id', 'enrich']);
 
 /**
  * The title page's chip selectors. They are not in the advanced catalog, so the

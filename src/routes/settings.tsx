@@ -82,6 +82,9 @@ function SettingsPage() {
 
 	// Server config + environment checks; sections stay hidden until these load.
 	const server = useQuery({ queryKey: ['config'], queryFn: () => api.config() });
+	const dirs = server.data?.directories;
+	// The server sends directories only to admin keys, the same keys it lets run maintenance.
+	const isAdmin = dirs !== undefined;
 	const envChecks = useQuery({ queryKey: ['env-check'], queryFn: () => api.envCheck() });
 
 	// The accepted cost of running in server mode: the poller reads UNSHACKLE_API_URL from
@@ -337,22 +340,26 @@ function SettingsPage() {
 												: 'unlimited'}
 										</dd>
 									</div>
-									<div>
-										<dt className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-											Output directory
-										</dt>
-										<dd className="mt-0.5 font-mono text-xs break-all text-neutral-900 dark:text-neutral-100">
-											{mask.text(server.data.directories.downloads)}
-										</dd>
-									</div>
-									<div>
-										<dt className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-											Temp directory
-										</dt>
-										<dd className="mt-0.5 font-mono text-xs break-all text-neutral-900 dark:text-neutral-100">
-											{mask.text(server.data.directories.temp)}
-										</dd>
-									</div>
+									{dirs && (
+										<>
+											<div>
+												<dt className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+													Output directory
+												</dt>
+												<dd className="mt-0.5 font-mono text-xs break-all text-neutral-900 dark:text-neutral-100">
+													{mask.text(dirs.downloads)}
+												</dd>
+											</div>
+											<div>
+												<dt className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+													Temp directory
+												</dt>
+												<dd className="mt-0.5 font-mono text-xs break-all text-neutral-900 dark:text-neutral-100">
+													{mask.text(dirs.temp)}
+												</dd>
+											</div>
+										</>
+									)}
 									<div className="sm:col-span-2">
 										<dt className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
 											Allowed services
@@ -371,128 +378,130 @@ function SettingsPage() {
 							</Card>
 						</section>
 
-						<section>
-							<h2 className="text-lg font-semibold tracking-tight">Maintenance</h2>
-							<p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-								One-off server housekeeping. Clearing is destructive and asks to confirm.
-							</p>
+						{isAdmin && (
+							<section>
+								<h2 className="text-lg font-semibold tracking-tight">Maintenance</h2>
+								<p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+									One-off server housekeeping. Clearing is destructive and asks to confirm.
+								</p>
 
-							<Card className="mt-4 divide-y divide-neutral-100 p-0 dark:divide-neutral-800">
-								<div className="px-6 py-4">
-									<div className="flex items-center justify-between gap-4">
-										<div className="min-w-0">
-											<p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-												Clear temp
-											</p>
-											<p className="mt-0.5 truncate font-mono text-xs text-neutral-400 dark:text-neutral-500">
-												Empties {mask.text(server.data.directories.temp)}
-											</p>
-										</div>
-										<div className="flex shrink-0 items-center gap-2">
-											{tempOp.kind === 'confirm' ? (
-												<>
-													<Button variant="danger" onClick={runClearTemp}>
-														<Icon name="trash" size={16} /> Confirm
-													</Button>
+								<Card className="mt-4 divide-y divide-neutral-100 p-0 dark:divide-neutral-800">
+									<div className="px-6 py-4">
+										<div className="flex items-center justify-between gap-4">
+											<div className="min-w-0">
+												<p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+													Clear temp
+												</p>
+												<p className="mt-0.5 truncate font-mono text-xs text-neutral-400 dark:text-neutral-500">
+													Empties {mask.text(dirs.temp)}
+												</p>
+											</div>
+											<div className="flex shrink-0 items-center gap-2">
+												{tempOp.kind === 'confirm' ? (
+													<>
+														<Button variant="danger" onClick={runClearTemp}>
+															<Icon name="trash" size={16} /> Confirm
+														</Button>
+														<Button
+															variant="secondary"
+															onClick={() => setOp('temp', { kind: 'idle' })}
+														>
+															Cancel
+														</Button>
+													</>
+												) : (
 													<Button
 														variant="secondary"
-														onClick={() => setOp('temp', { kind: 'idle' })}
+														disabled={tempOp.kind === 'running'}
+														onClick={() => setOp('temp', { kind: 'confirm' })}
 													>
-														Cancel
+														{tempOp.kind === 'running' ? (
+															<Icon name="loader" spin />
+														) : (
+															<Icon name="trash" size={16} />
+														)}
+														Clear temp
 													</Button>
-												</>
-											) : (
-												<Button
-													variant="secondary"
-													disabled={tempOp.kind === 'running'}
-													onClick={() => setOp('temp', { kind: 'confirm' })}
-												>
-													{tempOp.kind === 'running' ? (
-														<Icon name="loader" spin />
-													) : (
-														<Icon name="trash" size={16} />
-													)}
-													Clear temp
-												</Button>
-											)}
+												)}
+											</div>
 										</div>
+										{tempOp.kind === 'ok' ? (
+											<p className="mt-2 flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
+												<Icon name="check" size={14} />
+												{tempOp.message}
+											</p>
+										) : tempOp.kind === 'error' ? (
+											<p className="mt-2 flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
+												<Icon name="alert" size={14} />
+												{tempOp.message}
+											</p>
+										) : null}
 									</div>
-									{tempOp.kind === 'ok' ? (
-										<p className="mt-2 flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
-											<Icon name="check" size={14} />
-											{tempOp.message}
-										</p>
-									) : tempOp.kind === 'error' ? (
-										<p className="mt-2 flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
-											<Icon name="alert" size={14} />
-											{tempOp.message}
-										</p>
-									) : null}
-								</div>
 
-								<div className="px-6 py-4">
-									<div className="flex items-center justify-between gap-4">
-										<div className="min-w-0">
-											<p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+									<div className="px-6 py-4">
+										<div className="flex items-center justify-between gap-4">
+											<div className="min-w-0">
+												<p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+													Refresh services
+												</p>
+												<p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">
+													Sync configured service repos.
+												</p>
+											</div>
+											<Button
+												variant="secondary"
+												disabled={ops.refresh.kind === 'running'}
+												onClick={runRefresh}
+											>
+												{ops.refresh.kind === 'running' ? (
+													<Icon name="loader" spin />
+												) : (
+													<Icon name="retry" size={16} />
+												)}
 												Refresh services
-											</p>
-											<p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">
-												Sync configured service repos.
-											</p>
+											</Button>
 										</div>
-										<Button
-											variant="secondary"
-											disabled={ops.refresh.kind === 'running'}
-											onClick={runRefresh}
-										>
-											{ops.refresh.kind === 'running' ? (
-												<Icon name="loader" spin />
-											) : (
-												<Icon name="retry" size={16} />
-											)}
-											Refresh services
-										</Button>
-									</div>
-									{ops.refresh.kind === 'ok' ? (
-										<p className="mt-2 flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
-											<Icon name="check" size={14} />
-											{ops.refresh.message}
-										</p>
-									) : ops.refresh.kind === 'error' ? (
-										<p className="mt-2 flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
-											<Icon name="alert" size={14} />
-											{ops.refresh.message}
-										</p>
-									) : null}
-									{refreshRepos.length > 0 && (
-										<div className="mt-2 space-y-1">
-											{refreshRepos.map((repo) => (
-												<div key={repo.spec} className="text-xs">
-													<span
-														className={`font-mono ${
-															repo.updated
-																? 'text-neutral-500 dark:text-neutral-400'
-																: 'text-red-600 dark:text-red-400'
-														}`}
-													>
-														{mask.text(repo.spec)}
-														{repo.updated ? '' : ' (failed)'}
-													</span>
-													{repo.changes.map((c) => (
-														<p
-															key={c}
-															className="ml-3 font-mono text-neutral-400 dark:text-neutral-500"
+										{ops.refresh.kind === 'ok' ? (
+											<p className="mt-2 flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
+												<Icon name="check" size={14} />
+												{ops.refresh.message}
+											</p>
+										) : ops.refresh.kind === 'error' ? (
+											<p className="mt-2 flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
+												<Icon name="alert" size={14} />
+												{ops.refresh.message}
+											</p>
+										) : null}
+										{refreshRepos.length > 0 && (
+											<div className="mt-2 space-y-1">
+												{refreshRepos.map((repo) => (
+													<div key={repo.spec} className="text-xs">
+														<span
+															className={`font-mono ${
+																repo.updated
+																	? 'text-neutral-500 dark:text-neutral-400'
+																	: 'text-red-600 dark:text-red-400'
+															}`}
 														>
-															{mask.text(c)}
-														</p>
-													))}
-												</div>
-											))}
-										</div>
-									)}
-								</div>
-							</Card>
-						</section>
+															{mask.text(repo.spec)}
+															{repo.updated ? '' : ' (failed)'}
+														</span>
+														{repo.changes.map((c) => (
+															<p
+																key={c}
+																className="ml-3 font-mono text-neutral-400 dark:text-neutral-500"
+															>
+																{mask.text(c)}
+															</p>
+														))}
+													</div>
+												))}
+											</div>
+										)}
+									</div>
+								</Card>
+							</section>
+						)}
 					</>
 				)}
 

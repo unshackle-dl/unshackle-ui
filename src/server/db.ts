@@ -68,6 +68,10 @@ export function getDb(): DatabaseSync {
 	}[];
 	if (!cols.some((c) => c.name === 'interval_ms'))
 		db.exec('ALTER TABLE track ADD COLUMN interval_ms INTEGER');
+	// unshackle replaced animeapi_id with anilist_id (same "mal:21" / "21" form).
+	db.exec(`UPDATE track SET preset = json_set(json_remove(preset, '$.animeapi_id'),
+		'$.anilist_id', coalesce(json_extract(preset, '$.anilist_id'), json_extract(preset, '$.animeapi_id')))
+		WHERE json_extract(preset, '$.animeapi_id') IS NOT NULL`);
 	globalThis.__unshackleTrackingDb = db;
 	return db;
 }

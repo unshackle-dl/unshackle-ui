@@ -35,6 +35,7 @@ export interface Service {
 	url: string;
 	help: string;
 	cli_params: CliParam[];
+	has_search?: boolean;
 }
 
 export interface SearchResult {
@@ -69,29 +70,34 @@ export interface VideoTrack {
 	id: string;
 	codec: string;
 	codec_display: string;
-	bitrate: number;
+	bitrate: number | null;
 	width: number;
 	height: number;
-	resolution: string;
-	fps: number;
+	resolution: string | null;
+	fps: number | null;
 	range: string; // SDR | HDR10 | HDR10P | DV
 	range_display: string;
 	language: string | null;
-	drm: string | null;
+	drm: TrackDrm[] | null;
 	descriptor: string;
+}
+
+export interface TrackDrm {
+	type: string; // widevine | playready | ...
+	[key: string]: unknown;
 }
 
 export interface AudioTrack {
 	id: string;
 	codec: string;
 	codec_display: string;
-	bitrate: number;
-	channels: number;
+	bitrate: number | null;
+	channels: number | null;
 	language: string | null;
 	is_original: boolean;
 	atmos: boolean;
 	descriptive: boolean;
-	drm: string | null;
+	drm: TrackDrm[] | null;
 	descriptor: string;
 }
 
@@ -165,6 +171,8 @@ export interface Job {
 	message?: string;
 	error?: string;
 	skipped_subtitles?: { id: string; language: string; title?: string | null }[];
+	// Set while a service waits on user input (OTP, PIN, …); answer via api.answerJob.
+	input_prompt?: string | null;
 	// Present when the list is fetched with full=true (and on /jobs/{id}).
 	parameters?: { wanted?: string[]; [key: string]: unknown };
 	started_time?: string | null;
@@ -200,7 +208,8 @@ export interface ServerConfig {
 		cdm_overrides: string[] | true | null;
 		allow_job_credentials: boolean;
 	};
-	directories: {
+	// Only sent to an admin key (api_secret or admin: true).
+	directories?: {
 		downloads: string;
 		temp: string;
 		cache: string;
