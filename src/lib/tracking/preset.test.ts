@@ -57,10 +57,16 @@ test('LIST_AFFECTING_KEYS is the transport whitelist', () => {
 	assert.deepEqual([...LIST_AFFECTING_KEYS], ['profile', 'proxy', 'no_proxy', 'cdm_type']);
 });
 
-test('buildPreset coerces both field sets and drops latest_episode', () => {
+test('buildPreset coerces both field sets and drops latest_episode(s)', () => {
 	const preset = buildPreset(
 		{
-			advanced: { profile: 'main', latest_episode: true, quality: '', no_mux: true },
+			advanced: {
+				profile: 'main',
+				latest_episode: true,
+				latest_episodes: '3',
+				quality: '',
+				no_mux: true
+			},
 			svcValues: { is_movie: true, region: ' JP ', extras: 'a, b' },
 			extra: { tvdb_order: 'dvd' }
 		},

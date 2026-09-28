@@ -33,7 +33,13 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 				help: 'Lowest bitrate within the quality (needs quality)'
 			},
 			{ key: 'repack', type: 'bool', label: 'REPACK tag' },
-			{ key: 'latest_episode', type: 'bool', label: 'Latest episode only' }
+			{ key: 'latest_episode', type: 'bool', label: 'Latest episode only' },
+			{
+				key: 'latest_episodes',
+				type: 'int',
+				label: 'Latest N episodes',
+				help: 'Only the N newest episodes; overrides Latest episode only'
+			}
 		]
 	},
 	{

@@ -21,6 +21,7 @@ const BACKEND_HONORED = new Set([
 	'channels',
 	'no_atmos',
 	'latest_episode',
+	'latest_episodes',
 	'lang',
 	'v_lang',
 	'require_subs',

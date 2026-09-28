@@ -84,9 +84,10 @@ export function buildPreset(form: PresetForm, svcFields: Field[]): TrackPreset {
 		...coerce(ADVANCED_FIELDS, form.advanced),
 		...coerce(svcFields, form.svcValues)
 	};
-	// Never store it: `latest_episode` re-resolves "latest" at download time, which fights
+	// Never store them: `latest_episode(s)` re-resolves "latest" at download time, which fights
 	// a tracker that drives selection through explicit `wanted` codes.
 	delete preset.latest_episode;
+	delete preset.latest_episodes;
 	return preset;
 }
 
