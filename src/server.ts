@@ -14,6 +14,7 @@ import { config } from './server/config';
 import { getDb } from './server/db';
 import { startPoller } from './server/poller';
 import { loadSettings } from './server/settings';
+import { startScheduler } from './server/scheduler';
 
 const fetch = createStartHandler(defaultStreamHandler);
 
@@ -31,6 +32,7 @@ if (!globalThis.__unshackleBootLogged) {
 	console.log(`[unshackle-ui] tracking store ${config.dbPath}, upstream ${config.apiUrl}`);
 }
 startPoller();
+startScheduler();
 
 export default {
 	async fetch(...args: Parameters<typeof fetch>) {

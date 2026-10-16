@@ -161,7 +161,13 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 	{
 		group: 'Proxy',
 		fields: [
-			{ key: 'proxy', type: 'text', label: 'Proxy', placeholder: 'URI or country code' },
+			{
+				key: 'proxy',
+				type: 'text',
+				label: 'Proxy',
+				placeholder: 'protonvpn:br ou URI completa',
+				help: 'Country/provider codes (e.g. protonvpn:br or nordvpn:ca) require server_proxy: true for this key under serve.users on the server. Full proxy URIs work without this permission.'
+			},
 			{ key: 'no_proxy', type: 'bool', label: 'Disable proxy' },
 			{ key: 'no_proxy_download', type: 'bool', label: 'Bypass proxy for segments' },
 			{

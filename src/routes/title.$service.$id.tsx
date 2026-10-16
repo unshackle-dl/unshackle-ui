@@ -115,7 +115,6 @@ function TitlePage() {
 		proxy: search.proxy ?? '',
 		no_proxy: search.no_proxy ?? false
 	}));
-
 	// Named profiles for this service; undefined keeps the free-text advanced field.
 	const profiles = useQuery(profilesQuery);
 	const profileOptions = profiles.isError ? null : (profiles.data?.[service] ?? null);

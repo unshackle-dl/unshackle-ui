@@ -12,6 +12,7 @@ const nav = [
 	{ href: '/', label: 'Browse', icon: 'search' },
 	{ href: '/discover', label: 'Discover', icon: 'compass' },
 	{ href: '/downloads', label: 'Downloads', icon: 'download' },
+	{ href: '/schedules', label: 'Schedules', icon: 'calendar' },
 	{ href: '/tracking', label: 'Tracking', icon: 'bell' },
 	{ href: '/history', label: 'History', icon: 'history' },
 	{ href: '/settings', label: 'Settings', icon: 'settings' }
