@@ -4,7 +4,7 @@
 // owner is NULL (records written before this column existed, or by another writer).
 //
 // Note the Python stamps `caller_key(request)` on create, which is the literal string
-// "anonymous" when no key is sent, so a --no-key deployment ends up with every record
+// "anonymous" when no API key is sent, so a --no-key deployment ends up with every record
 // owned by "anonymous" and therefore visible to every caller. That is intended: do not
 // "fix" it into NULL.
 import { timingSafeEqual } from 'node:crypto';

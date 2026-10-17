@@ -10,8 +10,8 @@ export default function AccentPicker() {
 			<button
 				className="block h-5 w-5 rounded-full ring-1 ring-neutral-300 ring-offset-1 ring-offset-white transition group-hover:scale-110 dark:ring-neutral-600 dark:ring-offset-neutral-900"
 				style={{ backgroundColor: current.scale[5] }}
-				aria-label={`Accent color: ${current.name}`}
-				title="Accent color"
+				aria-label={`Accent colour: ${current.name}`}
+				title="Accent colour"
 			/>
 
 			{/* Opens upward (sidebar bottom); pb-2 keeps the hover area continuous. */}
@@ -19,7 +19,7 @@ export default function AccentPicker() {
 				<div
 					className="flex flex-col items-center gap-1.5 rounded-lg border border-neutral-200 bg-white p-2 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
 					role="radiogroup"
-					aria-label="Accent color"
+					aria-label="Accent colour"
 				>
 					{ACCENTS.map((a) => (
 						<button

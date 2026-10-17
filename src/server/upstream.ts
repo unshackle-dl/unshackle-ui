@@ -66,7 +66,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * Live episode listing. `/api/list-titles` calls `get_titles()` straight through with no
  * cache layer, so every call is fresh; `no_cache` is a no-op on this path and is not sent.
  *
- * Any key beyond service/title_id is forwarded to the service when it names one of that
+ * Any field beyond service/title_id is forwarded to the service when it names one of that
  * service's cli options; see src/lib/tracking/preset.ts for which preset keys get here.
  */
 export function listTitles(body: {
@@ -80,7 +80,7 @@ export function listTitles(body: {
 	}).then((r) => r.titles);
 }
 
-/** Completed downloads, used to auto-clear "new" once an episode has actually landed. */
+/** Completed downloads, used to auto-clear "new" once an episode has landed. */
 export function history(query?: { limit?: number; service?: string }): Promise<HistoryResponse> {
 	const params = new URLSearchParams();
 	if (query?.limit != null) params.set('limit', String(query.limit));

@@ -16,6 +16,8 @@ export interface WebhookTrack {
 	label: string;
 	service: string;
 	title_id: string;
+	/** The remote_services server the title is tracked through; absent for the serve's own. */
+	remote?: string;
 	/** Codes detected as new. Service-native numbering; see the tvdb_order note below. */
 	new_codes: string[];
 }

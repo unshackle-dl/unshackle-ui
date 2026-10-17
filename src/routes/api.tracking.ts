@@ -51,6 +51,7 @@ export const Route = createFileRoute('/api/tracking')({
 				const payload = (body.payload ?? {}) as Record<string, unknown>;
 				const service = str(payload.service);
 				const titleId = str(payload.title_id);
+				const remote = str(payload.remote);
 				if (!service || !titleId)
 					return fail(400, 'payload must carry a non-empty service and title_id.');
 
@@ -63,7 +64,7 @@ export const Route = createFileRoute('/api/tracking')({
 				const track = createTrack({
 					kind,
 					label: str(body.label) ?? titleId,
-					payload: { service, title_id: titleId },
+					payload: { service, title_id: titleId, remote: remote ?? undefined },
 					preset: (body.preset ?? {}) as TrackPreset,
 					codes,
 					baseline: body.baseline === true,

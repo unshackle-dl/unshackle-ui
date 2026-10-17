@@ -1,4 +1,5 @@
 import { getSettings } from '$lib/config';
+import { relayFields } from './relay';
 import { browser } from '$lib/store';
 import type {
 	ClearFinishedResponse,
@@ -13,6 +14,7 @@ import type {
 	PriorityResponse,
 	ProfilesResponse,
 	RefreshServicesResponse,
+	RemoteLogin,
 	SearchResponse,
 	Service,
 	Title,
@@ -37,7 +39,7 @@ export function errorMessage(e: unknown): string {
 const apiBase = () => getSettings().apiUrl.replace(/\/+$/, '');
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-	// The base URL and key come from Settings, which lives in localStorage. On the server
+	// The base URL and API key come from Settings, which lives in localStorage. On the server
 	// getSettings() can only see the build-time PUBLIC_UNSHACKLE_* defaults, so a loader
 	// that runs during SSR talks to a different API than the user configured, usually
 	// answering `unauthorized`. Any route that reaches this from a loader or beforeLoad
@@ -45,7 +47,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	if (!browser)
 		throw new ApiError(
 			0,
-			'The unshackle API is browser-only: its URL and key come from Settings. Mark this route `ssr: false`.'
+			'The unshackle API is browser-only: its URL and API key come from Settings. Mark this route `ssr: false`.'
 		);
 
 	const { apiKey } = getSettings();
@@ -80,7 +82,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 /**
  * URL for the per-job SSE stream. EventSource cannot set headers, so this endpoint
- * accepts the key as a query param; a blank key must be omitted, not sent empty.
+ * accepts the API key as a query param; leave out an empty API key, do not send it empty.
  */
 export function jobEventsUrl(jobId: string): string {
 	const { apiKey } = getSettings();
@@ -88,14 +90,21 @@ export function jobEventsUrl(jobId: string): string {
 	return `${apiBase()}/api/download/jobs/${encodeURIComponent(jobId)}/events${key}`;
 }
 
-function post<T>(path: string, body: unknown): Promise<T> {
-	return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+// The Settings source; see relayFields.
+const remote = () => relayFields(getSettings().remote);
+
+function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+	return request<T>(path, { method: 'POST', body: JSON.stringify(body), signal });
 }
 
 export const api = {
 	health: () => request<Health>('/api/health'),
 
-	services: () => request<{ services: Service[] }>('/api/services').then((r) => r.services),
+	services: () => {
+		const { remote } = getSettings();
+		const qs = remote ? `?remote=${encodeURIComponent(remote)}` : '';
+		return request<{ services: Service[] }>(`/api/services${qs}`).then((r) => r.services);
+	},
 
 	search: (body: {
 		service: string;
@@ -103,20 +112,28 @@ export const api = {
 		profile?: string;
 		proxy?: string;
 		no_proxy?: boolean;
-	}) => post<SearchResponse>('/api/search', body),
+	}) => post<SearchResponse>('/api/search', { ...remote(), ...body }),
 
-	// Any key beyond the transport ones below is forwarded to the service when it names one
+	// Any field beyond the transport ones below is forwarded to the service when it names one
 	// of that service's cli options (DSNP `extras`, VIKI `is_movie`, …). Many services read
 	// one in get_titles(), so omitting them makes the listed titles disagree with what a
 	// download resolves. tvdb_id / tvdb_order ride along the same way.
-	listTitles: (body: {
-		service: string;
-		title_id: string;
-		profile?: string;
-		proxy?: string;
-		no_proxy?: boolean;
-		[key: string]: unknown;
-	}) => post<{ titles: Title[] }>('/api/list-titles', body).then((r) => r.titles),
+	// `signal` lets a page cancel a listing it left: one waiting on a remote login holds its
+	// connection for minutes, and a browser opens only 6 per server, so the prompt polls queue.
+	listTitles: (
+		body: {
+			service: string;
+			title_id: string;
+			profile?: string;
+			proxy?: string;
+			no_proxy?: boolean;
+			[key: string]: unknown;
+		},
+		signal?: AbortSignal
+	) =>
+		post<{ titles: Title[] }>('/api/list-titles', { ...remote(), ...body }, signal).then(
+			(r) => r.titles
+		),
 
 	listTracks: (body: {
 		service: string;
@@ -126,9 +143,10 @@ export const api = {
 		proxy?: string;
 		no_proxy?: boolean;
 		[key: string]: unknown;
-	}) => post<Tracks>('/api/list-tracks', body),
+	}) => post<Tracks>('/api/list-tracks', { ...remote(), ...body }),
 
-	download: (body: DownloadRequest) => post<DownloadJobRef>('/api/download', body),
+	download: (body: DownloadRequest) =>
+		post<DownloadJobRef>('/api/download', { ...remote(), ...body }),
 
 	jobs: (query?: {
 		status?: string;
@@ -171,6 +189,13 @@ export const api = {
 	profiles: () => request<ProfilesResponse>('/api/profiles').then((r) => r.profiles),
 
 	config: () => request<ConfigResponse>('/api/config').then((r) => r.config),
+
+	remoteLogins: () =>
+		request<{ logins: RemoteLogin[] }>('/api/remote/logins').then((r) => r.logins),
+
+	// Answers the prompt a remote login a title listing waits on is asking.
+	answerRemoteLogin: (id: string, response: string) =>
+		post<{ status: string }>(`/api/remote/logins/${encodeURIComponent(id)}/input`, { response }),
 
 	history: (query?: { limit?: number; service?: string }) => {
 		const params = new URLSearchParams();

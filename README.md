@@ -39,7 +39,7 @@ Title tracking runs a sqlite store and poller inside the Node server, so this ne
 
 ## Configuration
 
-The browser gets its API URL and key from the **Settings** page. Defaults can be baked in via `.env` (see `.env.example`).
+The browser gets its API URL and API key from the **Settings** page. Defaults can be baked in via `.env` (see `.env.example`).
 
 The server keeps its own settings, since the tracking poller cannot read the browser's:
 
@@ -54,7 +54,7 @@ TRACKING_WEBHOOK_URL=          # optional summary POST per check cycle
 
 Everything except `TRACKING_DB_PATH` is also editable live from the Tracking page's Settings dialog, which wins over the env vars. Tracked titles are scoped to the `X-Secret-Key` that created them.
 
-`TRACKING_WEBHOOK_URL` gets one JSON POST per cycle that found something — a twelve-episode drop is one notification, not twelve.
+`TRACKING_WEBHOOK_URL` gets one JSON POST per cycle that found something: a twelve-episode drop is one notification, not twelve.
 
 ## License
 

@@ -9,9 +9,11 @@ import Card from '$lib/components/Card';
 import ChipSelect from '$lib/components/ChipSelect';
 import Icon from '$lib/components/Icon';
 import OptionForm, { type OptionValues } from '$lib/components/OptionForm';
+import Overlay from '$lib/components/Overlay';
 import { ADVANCED_FIELDS, blankAdvanced, buildDownloadRequest } from '$lib/download';
 import { blankValues, coerce, serviceFields, type Field } from '$lib/options';
 import { profilesQuery, servicesQuery, trackQuery, tracksQuery } from '$lib/queries';
+import { getSettings, useSettings } from '$lib/config';
 import { useMask } from '$lib/stores/incognito';
 import { tracking, trackingErrorMessage } from '$lib/tracking/client';
 import { buildListParams, buildPreset } from '$lib/tracking/preset';
@@ -22,6 +24,8 @@ interface TitleSearch {
 	profile?: string;
 	proxy?: string;
 	no_proxy?: boolean;
+	/** Comma-separated service tags that also matched the offer this was opened from. */
+	alt?: string;
 	// Service cli options (and tvdb_id/tvdb_order) pass through untouched: which
 	// keys exist depends on the service, so they are not enumerated. This is the
 	// only channel by which they can reach the loader, which runs before the
@@ -30,7 +34,7 @@ interface TitleSearch {
 }
 
 export const Route = createFileRoute('/title/$service/$id')({
-	// The loader below calls the unshackle API, whose base URL and key are the browser's
+	// The loader below calls the unshackle API, whose base URL and API key are the browser's
 	// Settings (localStorage). On the server those are invisible, so a refresh or a pasted
 	// title URL would run the loader against the build-time .env defaults and render
 	// `unauthorized`. `ssr: false` keeps the loader (and this component) client-only; the
@@ -38,31 +42,36 @@ export const Route = createFileRoute('/title/$service/$id')({
 	ssr: false,
 	// ponytail: three known optional fields plus a passthrough, so no schema library.
 	validateSearch: (search: Record<string, unknown>): TitleSearch => {
-		const { profile, proxy, no_proxy, ...rest } = search;
+		const { profile, proxy, no_proxy, alt, ...rest } = search;
 		const out: TitleSearch = { ...rest };
 		if (profile) out.profile = String(profile);
 		if (proxy) out.proxy = String(proxy);
 		if (no_proxy === true || no_proxy === '1') out.no_proxy = true;
+		if (alt) out.alt = String(alt);
 		return out;
 	},
-	loaderDeps: ({ search }) => search,
+	// the source too: titles listed through one server are not another's
+	loaderDeps: ({ search }) => ({ ...search, remote: getSettings().remote }),
 	// Episode selection and chip picks belong to one title, and the component is
 	// otherwise reused when only the params change, carrying them to the next one.
 	remountDeps: ({ params }) => params,
 	// Loaded up front so the Browse list can show per-row "opening…" feedback while
 	// this navigation is pending. Errors render inline, they are not thrown.
-	loader: async ({ params, deps }) => {
+	loader: async ({ params, deps, abortController }) => {
 		// Anything else in the search is a service cli option; transport keys win over it.
-		const { profile, proxy, no_proxy, ...svc } = deps;
+		const { profile, proxy, no_proxy, alt: _alt, remote: _remote, ...svc } = deps;
 		try {
-			const titles = await api.listTitles({
-				...svc,
-				service: params.service,
-				title_id: params.id,
-				profile: profile || undefined,
-				proxy: proxy || undefined,
-				no_proxy: no_proxy || undefined
-			});
+			const titles = await api.listTitles(
+				{
+					...svc,
+					service: params.service,
+					title_id: params.id,
+					profile: profile || undefined,
+					proxy: proxy || undefined,
+					no_proxy: no_proxy || undefined
+				},
+				abortController.signal
+			);
 			return { titles, error: null as string | null };
 		} catch (e) {
 			return { titles: [] as Title[], error: errorMessage(e) };
@@ -72,9 +81,9 @@ export const Route = createFileRoute('/title/$service/$id')({
 });
 
 // Codecs to request. Fixed list, not derived from tracks: some services (e.g. AMZN)
-// only serve a codec when it's explicitly requested, so all must be selectable.
+// only serve a codec when it is explicitly requested, so all must be selectable.
 const CODECS = ['H.264', 'H.265', 'VP9', 'AV1'];
-// Fixed list like CODECS: manifests don't always advertise every range the service can serve.
+// Fixed list like CODECS: manifests do not always advertise every range the service can serve.
 const RANGES = ['SDR', 'HLG', 'HDR10', 'HDR10P', 'DV', 'HYBRID'];
 
 interface EpisodeTracks {
@@ -89,6 +98,8 @@ function TitlePage() {
 	const queryClient = useQueryClient();
 	const { service, id: titleId } = Route.useParams();
 	const search = Route.useSearch();
+	// Runner-up services from the Browse match, passed along as ?alt=TAG,TAG.
+	const alts = (search.alt ?? '').split(',').filter(Boolean);
 	const { titles, error } = Route.useLoaderData();
 
 	const episodic = isEpisodic(titles);
@@ -125,7 +136,7 @@ function TitlePage() {
 	}, [profileOptions, advanced.profile]);
 
 	// This service's own cli options (region, cdn, bitrate mode, …), if it has any.
-	// On failure the section simply stays hidden.
+	// On failure the section stays hidden.
 	const services = useQuery(servicesQuery);
 	const svcFields = useMemo<Field[]>(
 		() => serviceFields(services.data?.find((s) => s.tag === service)?.cli_params),
@@ -147,9 +158,14 @@ function TitlePage() {
 	// Is this title already tracked, and which of its codes are still unseen? Both come
 	// from this app's own /api/tracking routes, never from the unshackle API.
 	const trackedList = useQuery(tracksQuery);
+	const { remote: source } = useSettings();
 	const tracked =
 		(trackedList.data ?? []).find(
-			(t) => t.kind === 'series' && t.payload.service === service && t.payload.title_id === titleId
+			(t) =>
+				t.kind === 'series' &&
+				t.payload.service === service &&
+				t.payload.title_id === titleId &&
+				(t.payload.remote ?? '') === source
 		) ?? null;
 	const trackDetail = useQuery({ ...trackQuery(tracked?.id ?? ''), enabled: tracked != null });
 	const unseenCodes = useMemo(
@@ -240,7 +256,7 @@ function TitlePage() {
 
 	// Which audio languages "orig" would pick. The API flags these per track. Many
 	// services leave the title language unset, which is legitimate, so an empty list
-	// just means no marker.
+	// means no marker.
 	const originalLangs = combined?.originalAudioLangs ?? [];
 
 	const start = useMutation({
@@ -284,6 +300,26 @@ function TitlePage() {
 			<p className="mt-1 font-mono text-xs text-neutral-400 dark:text-neutral-500">
 				{mask.service(service)} · {mask.id(titleId)}
 			</p>
+			{/* Browse matched this provider to more than one service (NF/NF_PR, HULU/HULUJP);
+			    offer the runners-up rather than making the user go back and search. */}
+			{alts.length > 0 && (
+				<p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+					also matched{' '}
+					{alts.map((tag, i) => (
+						<span key={tag}>
+							{i > 0 && ', '}
+							<Link
+								to="/title/$service/$id"
+								params={{ service: tag, id: titleId }}
+								search={{ ...search, alt: [...alts.filter((t) => t !== tag), service].join(',') }}
+								className="font-mono underline hover:text-neutral-900 dark:hover:text-neutral-100"
+							>
+								{mask.service(tag)}
+							</Link>
+						</span>
+					))}
+				</p>
+			)}
 
 			{error ? (
 				<Card className="mt-6 p-4">
@@ -674,12 +710,13 @@ function TrackDialog({
 	const [relisting, setRelisting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	const payload = { service, title_id: titleId };
+	const { remote } = useSettings();
+	const payload = { service, title_id: titleId, remote: remote || undefined };
 
 	// Anything in the URL that is not a transport key is either a service cli option or an
 	// inert id; the form values below win over it, so a duplicated key is not a conflict.
 	const searchExtra = useMemo<TrackPreset>(() => {
-		const skip = new Set(['profile', 'proxy', 'no_proxy']);
+		const skip = new Set(['profile', 'proxy', 'no_proxy', 'alt']);
 		return Object.fromEntries(
 			Object.entries(search).filter(([k, v]) => !skip.has(k) && v != null && v !== '')
 		);
@@ -752,114 +789,101 @@ function TrackDialog({
 	const entries = Object.entries(preset);
 
 	return (
-		// ponytail: a plain overlay, not a <dialog> or a focus trap. The app has no other
-		// modal to justify a shared component.
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-			onClick={onClose}
-		>
-			<div
-				role="dialog"
-				aria-modal="true"
-				aria-label="Track this series"
-				onClick={(e) => e.stopPropagation()}
-				className="max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-neutral-200 bg-white p-5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
-			>
-				<h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-					Track this series
-				</h2>
-				<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-					{mask.service(service)} · {mask.id(titleId)} · {titles.length} episodes listed
+		<Overlay label="Track this series" width="max-w-lg" onClose={onClose}>
+			<h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
+				Track this series
+			</h2>
+			<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+				{mask.service(service)} · {mask.id(titleId)} · {titles.length} episodes listed
+			</p>
+
+			<label className="mt-4 block text-xs text-neutral-600 dark:text-neutral-400">
+				Name
+				<input
+					value={label}
+					onChange={(e) => setLabel(e.target.value)}
+					className="redact mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+				/>
+			</label>
+
+			<div className="mt-4">
+				<p className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
+					Captured from this page · {entries.length}
 				</p>
-
-				<label className="mt-4 block text-xs text-neutral-600 dark:text-neutral-400">
-					Name
-					<input
-						value={label}
-						onChange={(e) => setLabel(e.target.value)}
-						className="redact mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-					/>
-				</label>
-
-				<div className="mt-4">
-					<p className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
-						Captured from this page · {entries.length}
-					</p>
-					<p className="mt-0.5 text-[11px] text-neutral-400 dark:text-neutral-500">
-						Re-listing uses the transport and service options; the rest is kept for a later
-						download. Editable afterwards on the Tracking page.
-					</p>
-					<div className="mt-1.5 flex flex-wrap gap-1.5">
-						{entries.length === 0 ? (
-							<span className="text-xs text-neutral-400 dark:text-neutral-500">
-								Nothing set, so service defaults apply.
-							</span>
-						) : (
-							entries.map(([k, v]) => (
-								<Badge key={k} tone="neutral">
-									<span className="font-mono">
-										{k}={Array.isArray(v) ? v.join(', ') : String(v)}
-									</span>
-								</Badge>
-							))
-						)}
-					</div>
-				</div>
-
-				<label className="mt-4 flex items-start gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-					<input
-						type="checkbox"
-						checked={baseline}
-						onChange={(e) => setBaseline(e.target.checked)}
-						className="mt-0.5 accent-accent-600"
-					/>
-					<span>
-						Mark existing episodes as already seen.
-						<span className="block text-neutral-400 dark:text-neutral-500">
-							Off by default: everything listed now counts as new, so the tracker doubles as a
-							backlog list.
+				<p className="mt-0.5 text-[11px] text-neutral-400 dark:text-neutral-500">
+					Re-listing uses the transport and service options; the rest is kept for a later download.
+					Editable afterwards on the Tracking page.
+				</p>
+				<div className="mt-1.5 flex flex-wrap gap-1.5">
+					{entries.length === 0 ? (
+						<span className="text-xs text-neutral-400 dark:text-neutral-500">
+							Nothing set, so service defaults apply.
 						</span>
-					</span>
-				</label>
-
-				{mustRelist && (
-					<p className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
-						<Icon name="alert" size={14} className="mt-0.5 shrink-0" />
-						<span>
-							The episode list on this page was fetched without {mask.service(service)}'s own
-							options ({Object.keys(svcSet).join(', ')}), which the loader never sees. It will be
-							re-listed with the full preset before the codes are recorded, so the first check does
-							not report episodes that were never missing.
-						</span>
-					</p>
-				)}
-
-				{error && (
-					<p className="mt-4 flex items-start gap-2 text-xs text-red-600 dark:text-red-400">
-						<Icon name="alert" size={14} className="mt-0.5 shrink-0" />
-						<span>{mask.text(error)}</span>
-					</p>
-				)}
-
-				<div className="mt-5 flex items-center justify-end gap-2">
-					<Button variant="secondary" onClick={onClose} disabled={create.isPending}>
-						Cancel
-					</Button>
-					<Button onClick={() => (setError(null), create.mutate())} disabled={create.isPending}>
-						{create.isPending ? (
-							<>
-								<Icon name="loader" spin />
-								{relisting ? 'Re-listing episodes…' : 'Saving…'}
-							</>
-						) : (
-							<>
-								<Icon name="bell" />
-								Track
-							</>
-						)}
-					</Button>
+					) : (
+						entries.map(([k, v]) => (
+							<Badge key={k} tone="neutral">
+								<span className="font-mono">
+									{k}={Array.isArray(v) ? v.join(', ') : String(v)}
+								</span>
+							</Badge>
+						))
+					)}
 				</div>
 			</div>
-		</div>
+
+			<label className="mt-4 flex items-start gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+				<input
+					type="checkbox"
+					checked={baseline}
+					onChange={(e) => setBaseline(e.target.checked)}
+					className="mt-0.5 accent-accent-600"
+				/>
+				<span>
+					Mark existing episodes as already seen.
+					<span className="block text-neutral-400 dark:text-neutral-500">
+						Off by default: everything listed now counts as new, so the tracker doubles as a backlog
+						list.
+					</span>
+				</span>
+			</label>
+
+			{mustRelist && (
+				<p className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+					<Icon name="alert" size={14} className="mt-0.5 shrink-0" />
+					<span>
+						The episode list on this page was fetched without {mask.service(service)}'s own options
+						({Object.keys(svcSet).join(', ')}), which the loader never sees. It will be re-listed
+						with the full preset before the codes are recorded, so the first check does not report
+						episodes that were never missing.
+					</span>
+				</p>
+			)}
+
+			{error && (
+				<p className="mt-4 flex items-start gap-2 text-xs text-red-600 dark:text-red-400">
+					<Icon name="alert" size={14} className="mt-0.5 shrink-0" />
+					<span>{mask.text(error)}</span>
+				</p>
+			)}
+
+			<div className="mt-5 flex items-center justify-end gap-2">
+				<Button variant="secondary" onClick={onClose} disabled={create.isPending}>
+					Cancel
+				</Button>
+				<Button onClick={() => (setError(null), create.mutate())} disabled={create.isPending}>
+					{create.isPending ? (
+						<>
+							<Icon name="loader" spin />
+							{relisting ? 'Re-listing episodes…' : 'Saving…'}
+						</>
+					) : (
+						<>
+							<Icon name="bell" />
+							Track
+						</>
+					)}
+				</Button>
+			</div>
+		</Overlay>
 	);
 }

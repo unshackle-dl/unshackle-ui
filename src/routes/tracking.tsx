@@ -1,15 +1,17 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import Badge from '$lib/components/Badge';
 import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import EmptyState from '$lib/components/EmptyState';
 import Icon from '$lib/components/Icon';
 import OptionForm from '$lib/components/OptionForm';
+import Overlay from '$lib/components/Overlay';
 import { ADVANCED_FIELDS } from '$lib/download';
 import { serviceFields, type Field } from '$lib/options';
 import { servicesQuery, trackingSettingsQuery, tracksQuery } from '$lib/queries';
+import { getSettings, settings } from '$lib/config';
 import { useMask } from '$lib/stores/incognito';
 import { tracking, trackingErrorMessage } from '$lib/tracking/client';
 import { applyPreset, buildPreset, type PresetForm } from '$lib/tracking/preset';
@@ -397,34 +399,6 @@ function ConfigModal({ onClose }: { onClose: () => void }) {
 	);
 }
 
-/** Same plain overlay as the title page's track dialog; two uses do not earn a shared modal. */
-function Overlay({
-	onClose,
-	label,
-	children
-}: {
-	onClose: () => void;
-	label: string;
-	children: ReactNode;
-}) {
-	return (
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-			onClick={onClose}
-		>
-			<div
-				role="dialog"
-				aria-modal="true"
-				aria-label={label}
-				onClick={(e) => e.stopPropagation()}
-				className="max-h-full w-full max-w-2xl overflow-y-auto rounded-xl border border-neutral-200 bg-white p-5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
-			>
-				{children}
-			</div>
-		</div>
-	);
-}
-
 function TrackCard({
 	track,
 	svcFields,
@@ -443,6 +417,15 @@ function TrackCard({
 	onSaved: () => void;
 }) {
 	const mask = useMask();
+	const queryClient = useQueryClient();
+	// The poller lists a track through the source it was tracked with; the title page lists
+	// through Settings, so opening the title switches Settings to that source first.
+	const remote = track.kind === 'search' ? undefined : track.payload.remote;
+	function openInSource() {
+		if ((remote ?? '') === getSettings().remote) return;
+		settings.update((s) => ({ ...s, remote: remote ?? '' }));
+		queryClient.removeQueries({ queryKey: ['services'] });
+	}
 	// Two-click delete rather than a modal: losing a track loses its whole seen/unseen
 	// history, and re-adding it re-baselines from scratch.
 	const [confirmDelete, setConfirmDelete] = useState(false);
@@ -464,6 +447,8 @@ function TrackCard({
 								<Link
 									to="/title/$service/$id"
 									params={{ service: track.payload.service, id: track.payload.title_id }}
+									onClick={openInSource}
+									title={remote ? `Opens through ${remote}` : undefined}
 									className="hover:underline"
 								>
 									{mask.title(track.label)}
@@ -471,6 +456,7 @@ function TrackCard({
 							)}
 						</h2>
 						<Badge tone="neutral">{mask.service(track.payload.service)}</Badge>
+						{remote && <Badge tone="neutral">via {remote}</Badge>}
 						{track.unseen > 0 ? (
 							<Badge tone="accent">
 								{track.unseen} new of {track.total}
@@ -674,7 +660,7 @@ function PresetEditor({
 					className="mt-1.5 w-full max-w-48 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 font-mono text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
 				/>
 				<p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-					Just for this title. Blank uses the server-wide interval from the Settings dialog.
+					Only for this title. Blank uses the server-wide interval from the Settings dialog.
 				</p>
 			</div>
 

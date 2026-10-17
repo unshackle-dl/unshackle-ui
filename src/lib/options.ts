@@ -1,6 +1,6 @@
 import type { CliParam } from './api/types';
 
-// Shared field model for both option forms: the advanced catalog and service cli_params.
+// Shared field model for both option forms: the advanced catalogue and service cli_params.
 
 export type FieldType = 'bool' | 'int' | 'num' | 'text' | 'csv' | 'choice';
 
@@ -50,8 +50,10 @@ export function coerce(
 				.filter(Boolean);
 			if (arr.length) out[f.key] = arr;
 		} else {
-			// `slow` accepts a boolean or a "MIN-MAX" string.
-			if (f.key === 'slow' && (s === 'true' || s === 'false')) out[f.key] = s === 'true';
+			// `slow` and `sample` accept a boolean or a "START-END" string.
+			const lower = s.toLowerCase();
+			if ((f.key === 'slow' || f.key === 'sample') && (lower === 'true' || lower === 'false'))
+				out[f.key] = lower === 'true';
 			else out[f.key] = s;
 		}
 	}

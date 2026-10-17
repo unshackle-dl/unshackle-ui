@@ -9,7 +9,7 @@ export const incognito = writable<boolean>(
 if (browser) {
 	effect(incognito, (on) => {
 		localStorage.setItem('unshackle.incognito', on ? '1' : '0');
-		// The class drives the CSS that dots out free-text inputs, whose values can't be swapped.
+		// The class drives the CSS that dots out free-text inputs, whose values cannot be swapped.
 		document.documentElement.classList.toggle('incognito', on);
 	});
 }
@@ -63,7 +63,7 @@ export function maskers(on: boolean) {
 		title: (s: Maskable) => (on && s ? pick(FAKE_TITLES, s) : (s ?? '')),
 		id: (s: Maskable) => (on && s ? `id-${hash(s).toString(36)}` : (s ?? '')),
 		profile: (s: Maskable) => (on && s ? pick(FAKE_PROFILES, s) : (s ?? '')),
-		// Arbitrary free text (descriptions, error output) can't be faked convincingly, so hide it.
+		// Arbitrary free text (descriptions, error output) cannot be faked convincingly, so hide it.
 		text: (s: Maskable) => (on && s ? '(hidden by incognito)' : (s ?? '')),
 		// Numbers identify a title almost as well as its name; nudge them deterministically.
 		year: (n: number | null | undefined) => (on && n != null ? 1970 + (hash(`y${n}`) % 55) : n),

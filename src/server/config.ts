@@ -127,7 +127,7 @@ export function settingSources(): Record<SettingKey, SettingSource> {
 	return out;
 }
 
-/** Host only: the key must never leave the server, and the URL can carry credentials. */
+/** Host only: the API key must never leave the server, and the URL can carry credentials. */
 export function apiHost(): string {
 	try {
 		return new URL(config.apiUrl).host;

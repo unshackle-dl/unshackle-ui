@@ -4,7 +4,7 @@ import { api } from './api/client';
 import { browse } from './browse/client';
 import { tracking } from './tracking/client';
 
-// Both are read from more than one page, and neither changes during a session, so the
+// Both are read from more than one page, and neither changes while the app is open, so the
 // long staleTime keeps a page switch from refetching them.
 
 export const servicesQuery = queryOptions({

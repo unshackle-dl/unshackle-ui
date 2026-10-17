@@ -19,6 +19,8 @@ export type TrackState = 'active' | 'paused';
 export interface TitlePayload {
 	service: string;
 	title_id: string;
+	/** The remote_services server the title was tracked through; absent for the serve's own. */
+	remote?: string;
 }
 
 /** A saved search on a service, for the later search-tracking kind. */
@@ -128,7 +130,7 @@ export interface TrackingStatus {
 	poller: PollerMode;
 	last_scan: ScanRow | null;
 	/**
-	 * The HOST the server polls, never the full URL and never the key. It exists so the
+	 * The HOST the server polls, never the full URL and never the API key. It exists so the
 	 * browser can notice that its own Settings point somewhere else.
 	 */
 	api_url: string;

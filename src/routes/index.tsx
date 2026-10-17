@@ -34,7 +34,7 @@ function Browse() {
 	const profiles = useQuery(profilesQuery);
 	const profileOptions = profiles.data?.[service] ?? [];
 	const [profile, setProfile] = useState('');
-	// Preselect a named profile ("default" is just one of them, not a synthetic entry).
+	// Preselect a named profile ("default" is one of them, not a synthetic entry).
 	useEffect(() => {
 		if (profileOptions.length && !profileOptions.includes(profile))
 			setProfile(profileOptions.includes('default') ? 'default' : profileOptions[0]);
@@ -101,7 +101,7 @@ function Browse() {
 					<div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400">
 						<Icon name="alert" size={16} className="mt-0.5" />
 						<span>
-							Couldn't load services: {mask.text(errorMessage(services.error))}. Check the{' '}
+							Could not load services: {mask.text(errorMessage(services.error))}. Check the{' '}
 							<Link to="/settings" className="font-medium underline">
 								API settings
 							</Link>
@@ -329,7 +329,7 @@ function Browse() {
 				</div>
 			) : popular.error ? (
 				<p className="mt-10 text-sm text-neutral-400 dark:text-neutral-500">
-					Couldn't load popular titles from JustWatch.
+					Could not load popular titles from JustWatch.
 				</p>
 			) : null}
 		</>
