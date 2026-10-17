@@ -14,6 +14,7 @@ import { blankValues, coerce, serviceFields, type Field } from '$lib/options';
 import { profilesQuery, servicesQuery, trackQuery, tracksQuery } from '$lib/queries';
 import { useMask } from '$lib/stores/incognito';
 import { tracking, trackingErrorMessage } from '$lib/tracking/client';
+import { schedules } from '$lib/schedules/client';
 import { buildListParams, buildPreset } from '$lib/tracking/preset';
 import type { TrackPreset } from '$lib/tracking/types';
 import { hasParts, isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
@@ -109,6 +110,8 @@ function TitlePage() {
 	const [audioSel, setAudioSel] = useState<string[]>([]);
 	const [subSel, setSubSel] = useState<string[]>([]);
 	const [trackOpen, setTrackOpen] = useState(false);
+	const [scheduleOpen, setScheduleOpen] = useState(false);
+	const [scheduleAt, setScheduleAt] = useState('');
 	const [advanced, setAdvanced] = useState<OptionValues>(() => ({
 		...blankAdvanced(),
 		profile: search.profile ?? '',
@@ -242,26 +245,35 @@ function TitlePage() {
 	// just means no marker.
 	const originalLangs = combined?.originalAudioLangs ?? [];
 
+	const makeDownloadRequest = () =>
+		buildDownloadRequest(
+			{ service, title_id: titleId },
+			{
+				// An empty selection means all episodes; send them so progress can list them.
+				wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
+				quality: qualitySel,
+				vcodec: codecSel,
+				range: rangeSel,
+				a_lang: audioSel,
+				s_lang: subSel
+			},
+			advanced,
+			svcFields,
+			svcValues
+		);
 	const start = useMutation({
-		mutationFn: () =>
-			api.download(
-				buildDownloadRequest(
-					{ service, title_id: titleId },
-					{
-						// An empty selection means all episodes; send them so progress can list them.
-						wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
-						quality: qualitySel,
-						vcodec: codecSel,
-						range: rangeSel,
-						a_lang: audioSel,
-						s_lang: subSel
-					},
-					advanced,
-					svcFields,
-					svcValues
-				)
-			),
+		mutationFn: () => api.download(makeDownloadRequest()),
 		onSuccess: () => navigate({ to: '/downloads' })
+	});
+	const scheduleDownload = useMutation({
+		mutationFn: () =>
+			schedules.create({
+				name: header,
+				runAt: new Date(scheduleAt).toISOString(),
+				timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				request: makeDownloadRequest()
+			}),
+		onSuccess: () => setScheduleOpen(false)
 	});
 
 	return (
@@ -555,6 +567,14 @@ function TitlePage() {
 											</>
 										)}
 									</Button>
+									<Button
+										variant="secondary"
+										onClick={() => setScheduleOpen((open) => !open)}
+										className="w-full sm:w-auto"
+									>
+										<Icon name="calendar" />
+										Schedule
+									</Button>
 
 									{/* Series only: the tracking routes reject every other kind. */}
 									{episodic &&
@@ -580,6 +600,31 @@ function TitlePage() {
 											</Button>
 										))}
 								</div>
+								{scheduleOpen && (
+									<div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+										<label className="text-sm">
+											Run at ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+											<input
+												type="datetime-local"
+												value={scheduleAt}
+												onChange={(event) => setScheduleAt(event.target.value)}
+												className="mt-1 block rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
+											/>
+										</label>
+										<Button
+											disabled={!scheduleAt || scheduleDownload.isPending}
+											onClick={() => scheduleDownload.mutate()}
+										>
+											<Icon name="calendar" />
+											Save schedule
+										</Button>
+										{scheduleDownload.error && (
+											<p className="w-full text-sm text-red-600">
+												{String(scheduleDownload.error)}
+											</p>
+										)}
+									</div>
+								)}
 							</div>
 						) : (
 							<div className="mt-4 flex items-center gap-2 py-4 text-sm text-neutral-400 dark:text-neutral-500">

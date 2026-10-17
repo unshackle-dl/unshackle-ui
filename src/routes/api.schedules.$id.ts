@@ -1,23 +1,44 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { deleteSchedule, getSchedule, setScheduleState } from '../server/scheduler/store';
+import { fail, readJson } from '../server/http';
+import { callerKey } from '../server/owner';
+import { getSchedule, setScheduleState, deleteSchedule } from '../server/scheduler/store';
+
+function guard(request: Request): Response | null {
+	if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') ?? ''))
+		return fail(415, 'Content-Type must be application/json.');
+	const origin = request.headers.get('origin');
+	if (!origin || origin !== new URL(request.url).origin)
+		return fail(403, 'Request origin is not allowed.');
+	return null;
+}
+export async function updateScheduleHandler(request: Request, id: string): Promise<Response> {
+	const blocked = guard(request);
+	if (blocked) return blocked;
+	const caller = callerKey(request);
+	const existing = getSchedule(id, caller);
+	if (!existing) return fail(404, 'Schedule not found.');
+	const body = await readJson(request);
+	if (!body) return fail(400, 'Invalid JSON body.');
+	if (body.state !== 'active' && body.state !== 'paused')
+		return fail(400, 'state must be active or paused.');
+	if (existing.state === 'completed')
+		return fail(409, 'Completed schedules cannot be reactivated.');
+	return Response.json({ schedule: setScheduleState(id, caller, body.state) });
+}
+
+export function deleteScheduleHandler(request: Request, id: string): Response {
+	const blocked = guard(request);
+	if (blocked) return blocked;
+	return deleteSchedule(id, callerKey(request))
+		? new Response(null, { status: 204 })
+		: fail(404, 'Schedule not found.');
+}
 
 export const Route = createFileRoute('/api/schedules/$id')({
 	server: {
 		handlers: {
-			PATCH: async ({ request, params }) => {
-				const existing = getSchedule(params.id);
-				if (!existing) return Response.json({ error: 'Schedule not found.' }, { status: 404 });
-				let body: { state?: string };
-				try { body = await request.json() as { state?: string }; }
-				catch { return Response.json({ error: 'Invalid JSON body.' }, { status: 400 }); }
-				if (body.state !== 'active' && body.state !== 'paused') return Response.json({ error: 'state must be active or paused.' }, { status: 400 });
-				if (existing.state === 'completed') return Response.json({ error: 'Completed schedules cannot be reactivated.' }, { status: 409 });
-				const schedule = setScheduleState(params.id, body.state);
-				return schedule ? Response.json({ schedule }) : Response.json({ error: 'Schedule not found.' }, { status: 404 });
-			},
-			DELETE: ({ params }) => deleteSchedule(params.id)
-				? new Response(null, { status: 204 })
-				: Response.json({ error: 'Schedule not found.' }, { status: 404 })
+			PATCH: ({ request, params }) => updateScheduleHandler(request, params.id),
+			DELETE: ({ request, params }) => deleteScheduleHandler(request, params.id)
 		}
 	}
 });

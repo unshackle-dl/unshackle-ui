@@ -1,87 +1,128 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
+import { callerKey, owns } from '../owner';
 import { getDb } from '../db';
 
-export type ScheduleKind = 'once' | 'cron';
-export type ScheduleState = 'active' | 'paused' | 'completed';
 export interface ScheduleInput {
 	name: string;
-	kind: ScheduleKind;
-	runAt?: string;
-	cron?: string;
+	runAt: string;
 	timeZone: string;
 	request: { service: string; title_id: string; [key: string]: unknown };
 }
 export interface ScheduleRecord extends ScheduleInput {
 	id: string;
-	state: ScheduleState;
-	createdAt: string;
-	nextRunAt: string | null;
-	lastRunAt: string | null;
+	state: 'active' | 'paused' | 'completed';
+	createdAt: number;
+	nextRunAt: number | null;
+	lastRunAt: number | null;
 	lastStatus: string | null;
 	lastError: string | null;
 	lastJobId: string | null;
 }
 
 function db(): DatabaseSync {
-	const d = getDb();
-	d.exec(`CREATE TABLE IF NOT EXISTS schedule (
-		id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, run_at TEXT, cron TEXT,
-		time_zone TEXT NOT NULL, request_json TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'active',
-		created_at TEXT NOT NULL, next_run_at TEXT, last_run_at TEXT, last_status TEXT,
-		last_error TEXT, last_job_id TEXT, claimed_at TEXT
-	)`);
-	d.exec('CREATE INDEX IF NOT EXISTS idx_schedule_due ON schedule(state, next_run_at)');
-	return d;
+	return getDb();
 }
-
 function record(r: Record<string, unknown>): ScheduleRecord {
 	return {
-		id: String(r.id), name: String(r.name), kind: r.kind as ScheduleKind,
-		runAt: r.run_at == null ? undefined : String(r.run_at), cron: r.cron == null ? undefined : String(r.cron),
-		timeZone: String(r.time_zone), request: JSON.parse(String(r.request_json)), state: r.state as ScheduleState,
-		createdAt: String(r.created_at), nextRunAt: r.next_run_at == null ? null : String(r.next_run_at),
-		lastRunAt: r.last_run_at == null ? null : String(r.last_run_at), lastStatus: r.last_status == null ? null : String(r.last_status),
-		lastError: r.last_error == null ? null : String(r.last_error), lastJobId: r.last_job_id == null ? null : String(r.last_job_id)
+		id: String(r.id),
+		name: String(r.name),
+		runAt: new Date(Number(r.run_at)).toISOString(),
+		timeZone: String(r.time_zone),
+		request: JSON.parse(String(r.request_json)),
+		state: r.state as ScheduleRecord['state'],
+		createdAt: Number(r.created_at),
+		nextRunAt: r.next_run_at == null ? null : Number(r.next_run_at),
+		lastRunAt: r.last_run_at == null ? null : Number(r.last_run_at),
+		lastStatus: r.last_status == null ? null : String(r.last_status),
+		lastError: r.last_error == null ? null : String(r.last_error),
+		lastJobId: r.last_job_id == null ? null : String(r.last_job_id)
 	};
 }
-
-export function listSchedules(): ScheduleRecord[] {
-	return (db().prepare('SELECT * FROM schedule ORDER BY COALESCE(next_run_at, created_at), created_at DESC').all() as Record<string, unknown>[]).map(record);
+function ownedRow(id: string, caller: string): Record<string, unknown> | null {
+	const row = db().prepare('SELECT * FROM schedule WHERE id = ?').get(id) as
+		Record<string, unknown> | undefined;
+	return row && owns(String(row.owner_key), caller) ? row : null;
 }
-export function getSchedule(id: string): ScheduleRecord | null {
-	const row = db().prepare('SELECT * FROM schedule WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+export function listSchedules(caller: string): ScheduleRecord[] {
+	return (
+		db()
+			.prepare(
+				'SELECT * FROM schedule WHERE owner_key = ? ORDER BY COALESCE(next_run_at, created_at), created_at DESC'
+			)
+			.all(caller) as Record<string, unknown>[]
+	).map(record);
+}
+export function getSchedule(id: string, caller: string): ScheduleRecord | null {
+	const row = ownedRow(id, caller);
 	return row ? record(row) : null;
 }
-export function createSchedule(input: ScheduleInput, nextRunAt: string): ScheduleRecord {
+export function createSchedule(
+	input: ScheduleInput,
+	nextRunAt: number,
+	request: Request
+): ScheduleRecord {
 	const id = randomUUID();
-	db().prepare(`INSERT INTO schedule (id,name,kind,run_at,cron,time_zone,request_json,state,created_at,next_run_at)
-		VALUES (?,?,?,?,?,?,?,'active',?,?)`).run(id, input.name.trim(), input.kind, input.runAt ?? null, input.cron ?? null,
-		input.timeZone, JSON.stringify(input.request), new Date().toISOString(), nextRunAt);
-	return getSchedule(id)!;
+	const now = Date.now();
+	const caller = callerKey(request);
+	db()
+		.prepare(
+			`INSERT INTO schedule (id,name,run_at,time_zone,request_json,owner_key,state,created_at,next_run_at)
+		VALUES (?,?,?,?,?,?,'active',?,?)`
+		)
+		.run(
+			id,
+			input.name.trim(),
+			Date.parse(input.runAt),
+			input.timeZone,
+			JSON.stringify(input.request),
+			caller,
+			now,
+			nextRunAt
+		);
+	return getSchedule(id, caller)!;
 }
-export function deleteSchedule(id: string): boolean {
-	return db().prepare('DELETE FROM schedule WHERE id = ?').run(id).changes > 0;
+export function deleteSchedule(id: string, caller: string): boolean {
+	return (
+		db().prepare('DELETE FROM schedule WHERE id = ? AND owner_key = ?').run(id, caller).changes > 0
+	);
 }
-export function setScheduleState(id: string, state: 'active' | 'paused'): ScheduleRecord | null {
-	db().prepare('UPDATE schedule SET state = ? WHERE id = ?').run(state, id);
-	return getSchedule(id);
+export function setScheduleState(
+	id: string,
+	caller: string,
+	state: 'active' | 'paused'
+): ScheduleRecord | null {
+	const next =
+		state === 'active'
+			? Math.max(Date.now() + 5_000, Number(ownedRow(id, caller)?.run_at ?? Date.now()))
+			: null;
+	db()
+		.prepare(
+			"UPDATE schedule SET state = ?, next_run_at = ?, last_error = NULL WHERE id = ? AND owner_key = ? AND state != 'completed'"
+		)
+		.run(state, next, id, caller);
+	return getSchedule(id, caller);
 }
-export function claimDueSchedules(now: Date): ScheduleRecord[] {
-	const d = db();
-	// Claim inside an immediate transaction so two requests in this process cannot claim the same task.
-	d.exec('BEGIN IMMEDIATE');
-	try {
-		const due = d.prepare(`SELECT * FROM schedule WHERE state='active' AND next_run_at IS NOT NULL AND next_run_at <= ?
-			AND (claimed_at IS NULL OR claimed_at < ?) ORDER BY next_run_at LIMIT 20`).all(now.toISOString(), new Date(now.getTime() - 10 * 60_000).toISOString()) as Record<string, unknown>[];
-		const update = d.prepare('UPDATE schedule SET claimed_at = ? WHERE id = ?');
-		for (const row of due) update.run(now.toISOString(), String(row.id));
-		d.exec('COMMIT');
-		return due.map(record);
-	} catch (e) { d.exec('ROLLBACK'); throw e; }
+export function dueSchedules(now: number): (ScheduleRecord & { ownerKey: string })[] {
+	return (
+		db()
+			.prepare(
+				"SELECT * FROM schedule WHERE state='active' AND next_run_at IS NOT NULL AND next_run_at <= ? ORDER BY next_run_at"
+			)
+			.all(now) as Record<string, unknown>[]
+	).map((row) => ({ ...record(row), ownerKey: String(row.owner_key) }));
 }
-export function finishSchedule(id: string, result: { nextRunAt: string | null; jobId?: string; error?: string; completed: boolean }): void {
-	db().prepare(`UPDATE schedule SET last_run_at=?, last_status=?, last_error=?, last_job_id=?, next_run_at=?,
-		state=?, claimed_at=NULL WHERE id=?`).run(new Date().toISOString(), result.error ? 'failed' : 'submitted', result.error ?? null,
-		result.jobId ?? null, result.nextRunAt, result.completed ? 'completed' : 'active', id);
+export function finishSchedule(id: string, result: { jobId?: string; error?: string }): void {
+	db()
+		.prepare(
+			`UPDATE schedule SET last_run_at=?, last_status=?, last_error=?, last_job_id=?, next_run_at=NULL,
+		state=CASE WHEN state='paused' THEN 'paused' ELSE 'completed' END WHERE id=?`
+		)
+		.run(
+			Date.now(),
+			result.error ? 'failed' : 'submitted',
+			result.error ?? null,
+			result.jobId ?? null,
+			id
+		);
 }

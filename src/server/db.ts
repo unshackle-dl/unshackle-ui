@@ -44,6 +44,14 @@ CREATE TABLE IF NOT EXISTS scan (
   checked INTEGER DEFAULT 0, new_count INTEGER DEFAULT 0, error_count INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS schedule (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, run_at INTEGER NOT NULL,
+  time_zone TEXT NOT NULL, request_json TEXT NOT NULL, owner_key TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'active', created_at INTEGER NOT NULL,
+  next_run_at INTEGER, last_run_at INTEGER, last_status TEXT,
+  last_error TEXT, last_job_id TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_schedule_due ON schedule(state, next_run_at);
 `;
 
 declare global {
@@ -61,6 +69,25 @@ export function getDb(): DatabaseSync {
 	db.exec('PRAGMA foreign_keys = ON');
 	db.exec('PRAGMA busy_timeout = 5000');
 	db.exec(SCHEMA);
+	// Migrate schedules written by the earlier cron prototype. Keep only one-time rows;
+	// the recurring feature is deliberately out of scope and must not remain falsely active.
+	const scheduleCols = db.prepare("SELECT name FROM pragma_table_info('schedule')").all() as {
+		name: string;
+	}[];
+	if (scheduleCols.length && !scheduleCols.some((c) => c.name === 'owner_key')) {
+		db.exec("ALTER TABLE schedule ADD COLUMN owner_key TEXT NOT NULL DEFAULT 'anonymous'");
+		const names = new Set(scheduleCols.map((c) => c.name));
+		if (names.has('kind'))
+			db.exec(
+				"UPDATE schedule SET state='completed', next_run_at=NULL, last_status='cancelled' WHERE kind='cron'"
+			);
+		for (const column of ['run_at', 'created_at', 'next_run_at', 'last_run_at']) {
+			if (names.has(column))
+				db.exec(
+					`UPDATE schedule SET ${column}=CAST((julianday(${column}) - 2440587.5) * 86400000 AS INTEGER) WHERE ${column} IS NOT NULL AND typeof(${column})='text'`
+				);
+		}
+	}
 	// CREATE TABLE IF NOT EXISTS cannot add a column to a database from before the
 	// per-title interval existed.
 	const cols = db.prepare("SELECT name FROM pragma_table_info('track')").all() as {
