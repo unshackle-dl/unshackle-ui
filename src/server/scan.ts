@@ -147,6 +147,7 @@ async function sweep(
 						label: track.label,
 						service: payload.service ?? '',
 						title_id: payload.title_id ?? '',
+						remote: payload.remote,
 						new_codes: result.added
 					});
 				}

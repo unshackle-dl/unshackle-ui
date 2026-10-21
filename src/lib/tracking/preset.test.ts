@@ -30,6 +30,11 @@ test('buildListParams keeps transport options and service cli params', () => {
 	});
 });
 
+test('buildListParams lists a remote-tracked title through the same server, whatever the preset says', () => {
+	const params = buildListParams({ ...payload, remote: 'unshackle-services' }, { remote: 'other' });
+	assert.equal(params.remote, 'unshackle-services');
+});
+
 test('buildListParams drops track-level options that cannot change the episode list', () => {
 	const params = buildListParams(payload, { quality: [1080], vcodec: ['H.265'], no_mux: true });
 	assert.deepEqual(Object.keys(params).sort(), ['service', 'title_id']);

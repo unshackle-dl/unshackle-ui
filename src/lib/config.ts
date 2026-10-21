@@ -5,6 +5,8 @@ export interface Settings {
 	apiKey: string;
 	/** 2-letter country for JustWatch availability on the browse pages. */
 	country: string;
+	/** A remote_services server name on the serve, or '' for its own services. */
+	remote: string;
 }
 
 const KEY = 'unshackle.settings';
@@ -12,7 +14,8 @@ const KEY = 'unshackle.settings';
 const defaults: Settings = {
 	apiUrl: import.meta.env.PUBLIC_UNSHACKLE_API_URL || 'http://localhost:8786',
 	apiKey: import.meta.env.PUBLIC_UNSHACKLE_API_KEY || '',
-	country: 'US'
+	country: 'US',
+	remote: ''
 };
 
 function load(): Settings {

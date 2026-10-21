@@ -7,7 +7,7 @@
 // evaluate it at all until the first HTTP request, so an idle dev server is no evidence
 // either way.
 //
-// The built artifact is dist/server/server.js, a fetch handler and NOT an HTTP listener.
+// The built artefact is dist/server/server.js, a fetch handler and NOT an HTTP listener.
 // See server-runner.mjs for the process that turns it into one.
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server';
 import { config } from './server/config';
@@ -21,7 +21,7 @@ const fetch = createStartHandler(defaultStreamHandler);
 // Opened eagerly so a missing or unwritable data directory fails at boot with a clear
 // stack, rather than as a 500 on whichever tracking request arrives first.
 getDb();
-// Web-set overrides live in the db just opened, so they load between it and the poller.
+// Web-set overrides live in the db opened above, so they load between it and the poller.
 loadSettings();
 // Dev HMR re-evaluates this module on every save; log the boot line once per process.
 declare global {

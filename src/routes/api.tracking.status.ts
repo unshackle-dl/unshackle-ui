@@ -48,7 +48,7 @@ export const Route = createFileRoute('/api/tracking/status')({
 					unseen_total: tracks.reduce((n, t) => n + t.unseen, 0),
 					poller,
 					last_scan: lastScan(),
-					// Host only. The key never leaves this process, and the configured URL can
+					// Host only. The API key never leaves this process, and the configured URL can
 					// itself carry credentials.
 					api_url: apiHost()
 				};

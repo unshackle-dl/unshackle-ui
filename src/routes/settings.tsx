@@ -49,7 +49,8 @@ function SettingsPage() {
 	const [draft, setDraft] = useState({
 		apiUrl: current.apiUrl,
 		apiKey: current.apiKey,
-		country: current.country
+		country: current.country,
+		remote: current.remote
 	});
 	const [saved, setSaved] = useState(false);
 
@@ -57,12 +58,13 @@ function SettingsPage() {
 		settings.set({
 			apiUrl: draft.apiUrl.trim(),
 			apiKey: draft.apiKey.trim(),
-			// Anything that isn't a 2-letter code silently falls back to US.
+			// Anything that is not a 2-letter code silently falls back to US.
 			country: /^[A-Za-z]{2}$/.test(draft.country.trim())
 				? draft.country.trim().toUpperCase()
-				: 'US'
+				: 'US',
+			remote: draft.remote
 		});
-		// Everything cached was fetched from the old base URL / key. removeQueries, not
+		// Everything cached was fetched from the old base URL / API key. removeQueries, not
 		// clear(), so the in-flight "test & save" mutation that calls this survives.
 		queryClient.removeQueries();
 		setSaved(true);
@@ -91,7 +93,7 @@ function SettingsPage() {
 	// this app's own environment, while everything on this page uses the URL saved in this
 	// browser. They can disagree without either side being wrong, and the failure is silent:
 	// background checks hitting a different API than the one you are looking at. So it is
-	// surfaced rather than hidden. Host only; the server never reports its key.
+	// surfaced rather than hidden. Host only; the server never reports its API key.
 	const tracking = useQuery(statusQuery);
 	const drift =
 		tracking.data && tracking.data.poller !== 'inert' && hostOf(current.apiUrl) !== ''
@@ -221,6 +223,37 @@ function SettingsPage() {
 									2-letter code for JustWatch availability on the browse pages.
 								</p>
 							</div>
+
+							{(server.data?.remote_services?.length || draft.remote) && (
+								<div>
+									<label
+										htmlFor="remote"
+										className="block text-sm font-medium text-neutral-700 dark:text-neutral-200"
+									>
+										Service source
+									</label>
+									<select
+										id="remote"
+										value={draft.remote}
+										onChange={(e) => setDraft((d) => ({ ...d, remote: e.target.value }))}
+										className="mt-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+									>
+										<option value="">This server</option>
+										{[...new Set([...(server.data?.remote_services ?? []), draft.remote])]
+											.filter(Boolean)
+											.map((name) => (
+												<option key={name} value={name}>
+													{name} (remote)
+												</option>
+											))}
+									</select>
+									<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+										A remote server from the serve's{' '}
+										<code className="font-mono">remote_services</code> logs in and lists titles and
+										tracks; downloads still run on this server.
+									</p>
+								</div>
+							)}
 
 							<div className="flex items-center gap-3 pt-1">
 								<Button onClick={() => test.mutate()} disabled={test.isPending}>

@@ -22,6 +22,8 @@ export default function OptionForm({
 }) {
 	const mask = useMask();
 	const set = (key: string, v: string | boolean) => onChange({ ...values, [key]: v });
+
+	// "N set" = however many values coerce would send.
 	const setCount = Object.keys(coerce(fields, values)).length;
 	const groups = useMemo(() => {
 		const out: { name: string | undefined; bools: Field[]; inputs: Field[] }[] = [];

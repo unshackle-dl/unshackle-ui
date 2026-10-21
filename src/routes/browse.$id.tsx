@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { matchOffer } from '$lib/browse/match';
+import { proxySearch } from '$lib/browse/proxy';
 import Badge from '$lib/components/Badge';
 import Card from '$lib/components/Card';
 import Icon from '$lib/components/Icon';
@@ -13,11 +14,14 @@ import { trackingErrorMessage } from '$lib/tracking/client';
 // the title page.
 export const Route = createFileRoute('/browse/$id')({
 	ssr: false,
-	// Optional per-page region override; without it the Settings country applies.
-	validateSearch: (s: Record<string, unknown>): { country?: string } =>
-		typeof s.country === 'string' && /^[A-Za-z]{2}$/.test(s.country)
+	// Optional per-page region override (without it the Settings country applies) and the
+	// proxy choice the offer links carry to the title page; see proxySearch.
+	validateSearch: (s: Record<string, unknown>): { country?: string; proxy?: string } => ({
+		...(typeof s.country === 'string' && /^[A-Za-z]{2}$/.test(s.country)
 			? { country: s.country.toUpperCase() }
-			: {},
+			: {}),
+		...(typeof s.proxy === 'string' && s.proxy ? { proxy: s.proxy } : {})
+	}),
 	component: BrowseTitlePage
 });
 
@@ -29,10 +33,17 @@ function BrowseTitlePage() {
 	const settings = useSettings();
 	const country = search.country ?? settings.country;
 	const navigate = useNavigate({ from: Route.fullPath });
-	const setCountry = (c: string) => navigate({ search: { country: c }, replace: true });
+	const setCountry = (c: string) =>
+		navigate({ search: (s) => ({ ...s, country: c }), replace: true });
+	const proxyChoice = search.proxy ?? '';
+	const choice = proxyChoice.trim();
+	const setProxy = (p: string) =>
+		navigate({ search: (s) => ({ ...s, proxy: p || undefined }), replace: true });
 
 	const detail = useQuery(browseTitleQuery(id, country));
 	const services = useQuery(servicesQuery);
+	const geofenced = (tag: string) =>
+		(services.data?.find((svc) => svc.tag === tag)?.geofence.length ?? 0) > 0;
 
 	if (detail.error)
 		return (
@@ -62,7 +73,7 @@ function BrowseTitlePage() {
 	// Matched services first, each group A-Z by provider name.
 	const rows = offers.map((offer) => ({
 		offer,
-		match: matchOffer(offer.url, services.data ?? [])
+		match: matchOffer(offer, services.data ?? [], country)
 	}));
 	rows.sort(
 		(a, b) =>
@@ -136,6 +147,26 @@ function BrowseTitlePage() {
 				</select>
 				. Providers matching one of your services link straight to the title.
 			</p>
+			<p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+				<label htmlFor="browse-proxy">Proxy</label>
+				<input
+					id="browse-proxy"
+					value={proxyChoice}
+					onChange={(e) => setProxy(e.target.value)}
+					placeholder="auto"
+					autoComplete="off"
+					spellCheck={false}
+					className="w-32 rounded-md border border-neutral-200 bg-white px-1.5 py-0.5 font-mono text-xs font-medium text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+				/>
+				<span className="text-xs">
+					{choice.toLowerCase() === 'none'
+						? 'No proxy for any service.'
+						: choice
+							? `Every service goes through ${choice}.`
+							: `Auto: geofenced services go through a ${country} proxy.`}{' '}
+					The serve resolves a region or provider:region (nordvpn:us) with its own providers.
+				</span>
+			</p>
 
 			{offers.length === 0 ? (
 				<Card className="mt-4 p-5">
@@ -193,6 +224,13 @@ function BrowseTitlePage() {
 								key={offer.packageId}
 								to="/title/$service/$id"
 								params={{ service: match.service, id: match.id }}
+								// Other services that also matched this provider, so the title page can
+								// offer them when the pick is wrong (NF/NF_PR, HULU/HULUJP, ...), plus
+								// the Proxy field's choice for this service.
+								search={{
+									...(match.alts.length ? { alt: match.alts.join(',') } : {}),
+									...proxySearch(proxyChoice, country, geofenced(match.service))
+								}}
 								className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
 							>
 								{row}

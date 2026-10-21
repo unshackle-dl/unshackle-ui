@@ -54,6 +54,12 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 			{ key: 'channels', type: 'num', label: 'Channels', placeholder: '2.0, 5.1, 7.1' },
 			{ key: 'no_atmos', type: 'bool', label: 'Exclude Atmos' },
 			{ key: 'audio_description', type: 'bool', label: 'Audio description' },
+			{
+				key: 'audio_description_only',
+				type: 'bool',
+				label: 'Audio description only',
+				help: 'Only the audio-description tracks; not with no audio or video/subs/chapters only'
+			},
 			{ key: 'split_audio', type: 'bool', label: 'Split audio per codec' }
 		]
 	},
@@ -61,7 +67,18 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 		group: 'Subtitles & languages',
 		fields: [
 			{ key: 'forced_subs', type: 'bool', label: 'Forced subtitles' },
-			{ key: 'exact_lang', type: 'bool', label: 'Exact language match' },
+			{
+				key: 'forced_subs_only',
+				type: 'bool',
+				label: 'Forced subtitles only',
+				help: 'Only forced subtitles; not with no subs or video/audio/chapters only'
+			},
+			{
+				key: 'exact_lang',
+				type: 'bool',
+				label: 'Exact language match',
+				help: 'A bare tag (es) takes only the variant it means (es-ES), never another region'
+			},
 			{ key: 'require_subs', type: 'csv', label: 'Require subtitle langs', placeholder: 'en, es…' },
 			{ key: 'sub_format', type: 'text', label: 'Subtitle format', placeholder: 'SRT, VTT…' },
 			{ key: 'lang', type: 'csv', label: 'Video+audio lang', placeholder: 'orig, en…' },
@@ -135,6 +152,25 @@ const GROUPS: { group: string; fields: Omit<Field, 'group'>[] }[] = [
 			{ key: 'skip_dl', type: 'bool', label: 'Keys only (skip download)' },
 			{ key: 'export', type: 'bool', label: 'Export manifest JSON' },
 			{ key: 'cdm_only', type: 'bool', label: 'CDM only for keys' },
+			{
+				key: 'all_drm',
+				type: 'bool',
+				label: 'All DRM systems',
+				help: 'License Widevine and PlayReady per track; not with CDM device'
+			},
+			{
+				key: 'sample',
+				type: 'text',
+				label: 'Sample only',
+				placeholder: 'true or 0-60',
+				help: 'Download a clip instead of the full title (seconds)'
+			},
+			{
+				key: 'include_sample',
+				type: 'bool',
+				label: 'Include sample',
+				help: 'Also save a sample clip beside the full download; not with Sample only'
+			},
 			{
 				key: 'cdm',
 				type: 'text',

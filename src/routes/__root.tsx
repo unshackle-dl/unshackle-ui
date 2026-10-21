@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
 import appCss from '../app.css?url';
 import Card from '$lib/components/Card';
 import EmptyState from '$lib/components/EmptyState';
+import JobPromptModal from '$lib/components/JobPromptModal';
 import Sidebar from '$lib/components/Sidebar';
 import TrackingBanner from '$lib/components/TrackingBanner';
 import { queryClient } from '$lib/query';
@@ -63,7 +64,7 @@ function RootDocument({ children }: { children: ReactNode }) {
 function NotFound() {
 	return (
 		<Card className="mt-6">
-			<EmptyState icon="alert" title="Page not found" description="This page doesn't exist." />
+			<EmptyState icon="alert" title="Page not found" description="This page does not exist." />
 			<div className="pb-8 text-center">
 				<Link to="/" className="text-sm font-medium text-accent-600 underline dark:text-accent-400">
 					Back to Browse
@@ -97,6 +98,7 @@ function RootLayout() {
 					</div>
 				</main>
 			</div>
+			<JobPromptModal />
 		</QueryClientProvider>
 	);
 }
