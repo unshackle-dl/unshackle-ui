@@ -123,6 +123,9 @@ function TitlePage() {
 	const [trackOpen, setTrackOpen] = useState(false);
 	const [scheduleOpen, setScheduleOpen] = useState(false);
 	const [scheduleAt, setScheduleAt] = useState('');
+	const [scheduleWeekly, setScheduleWeekly] = useState(false);
+	const [scheduleDays, setScheduleDays] = useState<number[]>([]);
+	const [scheduleTime, setScheduleTime] = useState('22:00:00');
 	const [advanced, setAdvanced] = useState<OptionValues>(() => ({
 		...blankAdvanced(),
 		profile: search.profile ?? '',
@@ -285,9 +288,10 @@ function TitlePage() {
 		mutationFn: () =>
 			schedules.create({
 				name: header,
-				runAt: new Date(scheduleAt).toISOString(),
+				runAt: scheduleWeekly ? undefined : new Date(scheduleAt).toISOString(),
 				timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-				request: makeDownloadRequest()
+				request: makeDownloadRequest(),
+				recurrence: scheduleWeekly ? { daysOfWeek: scheduleDays, time: scheduleTime } : null
 			}),
 		onSuccess: () => setScheduleOpen(false)
 	});
@@ -638,17 +642,74 @@ function TitlePage() {
 								</div>
 								{scheduleOpen && (
 									<div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-										<label className="text-sm">
-											Run at ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+										<label className="flex items-center gap-2 text-sm">
 											<input
-												type="datetime-local"
-												value={scheduleAt}
-												onChange={(event) => setScheduleAt(event.target.value)}
-												className="mt-1 block rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
+												type="checkbox"
+												checked={scheduleWeekly}
+												onChange={(event) => setScheduleWeekly(event.target.checked)}
 											/>
+											Repeat weekly
 										</label>
+										{scheduleWeekly ? (
+											<>
+												<fieldset className="w-full">
+													<legend className="mb-2 text-sm">
+														Weekdays ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+													</legend>
+													<div className="flex flex-wrap gap-3">
+														{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
+															(day, index) => (
+																<label key={day} className="flex items-center gap-1 text-sm">
+																	<input
+																		type="checkbox"
+																		checked={scheduleDays.includes(index)}
+																		onChange={() =>
+																			setScheduleDays((days) =>
+																				days.includes(index)
+																					? days.filter((value) => value !== index)
+																					: [...days, index].sort()
+																				)
+																			}
+																		/>
+																		{day}
+																	</label>
+															)
+														)}
+													</div>
+												</fieldset>
+												<label className="text-sm">
+													Time (hour:minute:second)
+													<input
+														type="time"
+														step="1"
+														value={scheduleTime}
+														onChange={(event) => setScheduleTime(event.target.value)}
+														className="mt-1 block rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
+													/>
+												</label>
+												<p className="w-full text-xs text-neutral-500">
+													If the server was offline, one overdue run is submitted on restart; older missed
+													weeks are skipped. This is when the job is sent to the API.
+												</p>
+											</>
+										) : (
+											<label className="text-sm">
+												Run at ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+												<input
+													type="datetime-local"
+													step="1"
+													value={scheduleAt}
+													onChange={(event) => setScheduleAt(event.target.value)}
+													className="mt-1 block rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
+												/>
+											</label>
+										)}
 										<Button
-											disabled={!scheduleAt || scheduleDownload.isPending}
+											disabled={
+												(!scheduleWeekly && !scheduleAt) ||
+												(scheduleWeekly && scheduleDays.length === 0) ||
+												scheduleDownload.isPending
+											}
 											onClick={() => scheduleDownload.mutate()}
 										>
 											<Icon name="calendar" />

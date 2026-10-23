@@ -9,9 +9,10 @@ export const schedules = {
 		),
 	create: (input: {
 		name: string;
-		runAt: string;
+		runAt?: string;
 		timeZone: string;
 		request: Record<string, unknown>;
+		recurrence?: { daysOfWeek: number[]; time: string } | null;
 	}) =>
 		request<{ schedule: ScheduleRecord }>('/api/schedules', {
 			method: 'POST',

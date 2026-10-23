@@ -15,7 +15,7 @@ const input = (at = Date.now() + 60_000) => ({
 const request = (key: string) =>
 	new Request('http://localhost/api/schedules', { headers: { 'X-Secret-Key': key } });
 
-beforeEach(() => db.exec('DELETE FROM schedule'));
+beforeEach(() => db.exec('DELETE FROM schedule_run; DELETE FROM schedule'));
 afterAll(() => testDb.close());
 
 test('stores times as epoch milliseconds and isolates schedules by owner key', () => {

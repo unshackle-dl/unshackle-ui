@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { fail, readJson } from '../server/http';
 import { callerKey } from '../server/owner';
+import { startScheduler } from '../server/scheduler';
 import { getSchedule, setScheduleState, deleteSchedule } from '../server/scheduler/store';
 
 function guard(request: Request): Response | null {
@@ -23,7 +24,9 @@ export async function updateScheduleHandler(request: Request, id: string): Promi
 		return fail(400, 'state must be active or paused.');
 	if (existing.state === 'completed')
 		return fail(409, 'Completed schedules cannot be reactivated.');
-	return Response.json({ schedule: setScheduleState(id, caller, body.state) });
+	const schedule = setScheduleState(id, caller, body.state);
+	if (body.state === 'active') startScheduler();
+	return Response.json({ schedule });
 }
 
 export function deleteScheduleHandler(request: Request, id: string): Response {

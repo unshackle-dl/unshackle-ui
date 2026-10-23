@@ -1,0 +1,24 @@
+services:
+  unshackle-ui:
+    build: .
+    image: unshackle-ui:local
+    container_name: unshackle-ui
+    restart: unless-stopped
+    init: true
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      UNSHACKLE_API_URL: ${UNSHACKLE_API_URL:-http://localhost:8786}
+      UNSHACKLE_API_KEY: ${UNSHACKLE_API_KEY:-}
+      TRACKING_DB_PATH: /data/tracking.db
+      TRACKING_INTERVAL_MS: ${TRACKING_INTERVAL_MS:-21600000}
+      TRACKING_STAGGER_MS: ${TRACKING_STAGGER_MS:-30000}
+      TRACKING_WEBHOOK_URL: ${TRACKING_WEBHOOK_URL:-}
+    volumes:
+      - unshackle-ui-data:/data
+    # Put this service on the same Docker network as Unshackle, or set the URL to a reachable host.
+    # Do not expose the UI directly to the public internet without authentication/reverse-proxy controls.
+
+volumes:
+  unshackle-ui-data:

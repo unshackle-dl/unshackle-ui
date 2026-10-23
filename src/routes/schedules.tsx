@@ -6,6 +6,18 @@ import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import EmptyState from '$lib/components/EmptyState';
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function scheduleDescription(schedule: ScheduleRecord): string {
+	if (schedule.recurrence) {
+		const days = schedule.recurrence.daysOfWeek.map((day) => WEEKDAYS[day]).join(', ');
+		return `Every ${days} at ${schedule.recurrence.time} (${schedule.timeZone})`;
+	}
+	return `Runs ${new Date(schedule.nextRunAt ?? Date.parse(schedule.runAt)).toLocaleString(undefined, {
+		timeZone: schedule.timeZone
+	})} (${schedule.timeZone})`;
+}
+
 export const Route = createFileRoute('/schedules')({ ssr: false, component: Schedules });
 function Schedules() {
 	const client = useQueryClient();
@@ -28,7 +40,7 @@ function Schedules() {
 			<header>
 				<h1 className="text-2xl font-semibold">Scheduled downloads</h1>
 				<p className="mt-1 text-sm text-neutral-500">
-					Create a schedule from a title page using the same options as a download.
+					The scheduled time is when the job is submitted to the API. Weekly schedules use their saved time zone.
 				</p>
 			</header>
 			{query.isLoading ? (
@@ -50,12 +62,22 @@ function Schedules() {
 									{s.request.service} · {s.request.title_id}
 								</p>
 								<p className="text-xs text-neutral-500">
-									{s.state === 'completed'
-										? `Completed ${s.lastStatus ?? ''}`
-										: `Runs ${new Date(s.nextRunAt ?? Date.parse(s.runAt)).toLocaleString()} (${s.timeZone})`}
+									{s.state === 'completed' ? `Completed · ${s.lastStatus ?? ''}` : scheduleDescription(s)}
 									{s.lastJobId ? ` · Job ${s.lastJobId}` : ''}
 								</p>
 								{s.lastError && <p className="text-xs text-red-600">{s.lastError}</p>}
+								{s.runs.length > 0 && (
+									<ul className="mt-2 space-y-1 text-xs text-neutral-500">
+										{s.runs.slice(0, 3).map((run, index) => (
+											<li key={`${run.runAt}-${index}`}>
+												{new Date(run.runAt).toLocaleString(undefined, { timeZone: s.timeZone })} ·{' '}
+												{run.status}
+												{run.jobId ? ` · Job ${run.jobId}` : ''}
+												{run.error ? ` · ${run.error}` : ''}
+											</li>
+										))}
+									</ul>
+								)}
 							</div>
 							<div className="flex gap-2">
 								{s.state !== 'completed' && (

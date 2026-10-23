@@ -24,9 +24,10 @@ export async function createScheduleHandler(request: Request): Promise<Response>
 	if (!body) return fail(400, 'Invalid JSON body.');
 	const input: ScheduleInput = {
 		name: str(body.name) ?? '',
-		runAt: str(body.runAt) ?? '',
+		runAt: str(body.runAt) ?? undefined,
 		timeZone: str(body.timeZone) ?? '',
-		request: body.request as ScheduleInput['request']
+		request: body.request as ScheduleInput['request'],
+		recurrence: body.recurrence as ScheduleInput['recurrence']
 	};
 	try {
 		const nextRunAt = validateSchedule(input);

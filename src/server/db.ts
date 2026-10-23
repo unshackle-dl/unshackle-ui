@@ -49,9 +49,14 @@ CREATE TABLE IF NOT EXISTS schedule (
   time_zone TEXT NOT NULL, request_json TEXT NOT NULL, owner_key TEXT NOT NULL,
   state TEXT NOT NULL DEFAULT 'active', created_at INTEGER NOT NULL,
   next_run_at INTEGER, last_run_at INTEGER, last_status TEXT,
-  last_error TEXT, last_job_id TEXT
+  last_error TEXT, last_job_id TEXT, recurrence_json TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_schedule_due ON schedule(state, next_run_at);
+CREATE TABLE IF NOT EXISTS schedule_run (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, schedule_id TEXT NOT NULL,
+  run_at INTEGER NOT NULL, status TEXT NOT NULL, error TEXT, job_id TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_schedule_run_schedule ON schedule_run(schedule_id, run_at DESC);
 `;
 
 declare global {
@@ -69,8 +74,8 @@ export function getDb(): DatabaseSync {
 	db.exec('PRAGMA foreign_keys = ON');
 	db.exec('PRAGMA busy_timeout = 5000');
 	db.exec(SCHEMA);
-	// Migrate schedules written by the earlier cron prototype. Keep only one-time rows;
-	// the recurring feature is deliberately out of scope and must not remain falsely active.
+	// Migrate schedules written by the earlier cron prototype; its unsupported cron rows
+	// must not remain active as one-time schedules.
 	const scheduleCols = db.prepare("SELECT name FROM pragma_table_info('schedule')").all() as {
 		name: string;
 	}[];
@@ -88,6 +93,8 @@ export function getDb(): DatabaseSync {
 				);
 		}
 	}
+	if (scheduleCols.length && !scheduleCols.some((c) => c.name === 'recurrence_json'))
+		db.exec('ALTER TABLE schedule ADD COLUMN recurrence_json TEXT');
 	// CREATE TABLE IF NOT EXISTS cannot add a column to a database from before the
 	// per-title interval existed.
 	const cols = db.prepare("SELECT name FROM pragma_table_info('track')").all() as {
