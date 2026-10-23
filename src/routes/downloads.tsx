@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError, errorMessage } from '$lib/api/client';
 import { useJobEvents } from '$lib/api/jobEvents';
 import Badge from '$lib/components/Badge';
@@ -8,6 +8,8 @@ import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import EmptyState from '$lib/components/EmptyState';
 import Icon from '$lib/components/Icon';
+import InputPrompt from '$lib/components/InputPrompt';
+import { Notice } from '$lib/components/JobPromptModal';
 import { isActive, isFinished, isQueued, jobView } from '$lib/job';
 import { useMask } from '$lib/stores/incognito';
 
@@ -33,11 +35,11 @@ function Downloads() {
 	const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 	const filtering = statusFilter !== null || serviceFilter !== null;
 
-	// Action failures live separately so the 2s poll can't wipe them.
+	// Action failures live separately so the 2s poll cannot wipe them.
 	const [actionError, setActionError] = useState<string | null>(null);
 	const [busy, setBusy] = useState<Set<string>>(new Set());
 
-	// The filters are part of the key, so changing one refetches on its own, and a
+	// The filters are part of the query key, so changing one refetches on its own, and a
 	// slow response for a dropped key can never overwrite the current one.
 	const query = useQuery({
 		queryKey: ['jobs', statusFilter, serviceFilter, sortBy, sortOrder],
@@ -338,33 +340,42 @@ function Downloads() {
 									</div>
 								</div>
 
-								{v.tone === 'red' && (j.error_code || j.error_details || j.worker_stderr) && (
-									<details className="mt-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
-										<summary className="cursor-pointer px-3 py-2 text-sm font-medium text-red-700 select-none dark:text-red-300">
-											Error details
-											{j.error_code && (
-												<span className="ml-1 font-mono text-xs font-normal">{j.error_code}</span>
-											)}
-										</summary>
-										<div className="space-y-2 px-3 pb-3">
-											{j.error_details && (
-												<p className="text-sm break-words whitespace-pre-wrap text-red-700 dark:text-red-300">
-													{mask.text(j.error_details)}
-												</p>
-											)}
-											{j.worker_stderr && (
-												<details>
-													<summary className="cursor-pointer text-xs font-medium text-red-600 select-none dark:text-red-400">
-														Worker stderr
-													</summary>
-													<pre className="mt-1 max-h-48 overflow-auto rounded-md bg-red-100/70 p-2 font-mono text-xs whitespace-pre-wrap text-red-800 dark:bg-red-950/40 dark:text-red-200">
-														{mask.text(j.worker_stderr)}
-													</pre>
-												</details>
-											)}
-										</div>
-									</details>
-								)}
+								{v.tone === 'red' &&
+									(j.error_code || j.error_details || j.error_traceback || j.worker_stderr) && (
+										<details className="mt-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
+											<summary className="cursor-pointer px-3 py-2 text-sm font-medium text-red-700 select-none dark:text-red-300">
+												Error details
+												{j.error_code && (
+													<span className="ml-1 font-mono text-xs font-normal">{j.error_code}</span>
+												)}
+											</summary>
+											<div className="space-y-2 px-3 pb-3">
+												{j.error_details && (
+													<p className="text-sm break-words whitespace-pre-wrap text-red-700 dark:text-red-300">
+														{mask.text(j.error_details)}
+													</p>
+												)}
+												{(
+													[
+														['Traceback', j.error_traceback],
+														['Worker stderr', j.worker_stderr]
+													] as const
+												).map(
+													([label, text]) =>
+														text && (
+															<details key={label}>
+																<summary className="cursor-pointer text-xs font-medium text-red-600 select-none dark:text-red-400">
+																	{label}
+																</summary>
+																<pre className="mt-1 max-h-48 overflow-auto rounded-md bg-red-100/70 p-2 font-mono text-xs whitespace-pre-wrap text-red-800 dark:bg-red-950/40 dark:text-red-200">
+																	{mask.text(text)}
+																</pre>
+															</details>
+														)
+												)}
+											</div>
+										</details>
+									)}
 
 								{v.tone === 'green' && (j.skipped_subtitles?.length ?? 0) > 0 && (
 									<p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
@@ -372,6 +383,17 @@ function Downloads() {
 										{j.skipped_subtitles?.length === 1 ? 'subtitle' : 'subtitles'} skipped ·{' '}
 										{skippedLangs.join(', ')}
 									</p>
+								)}
+
+								{v.active && j.notice && (
+									<div
+										role="status"
+										aria-atomic="true"
+										className="mt-3 rounded-lg border border-accent-200 bg-accent-50 px-3 pb-2 dark:border-accent-500/30 dark:bg-accent-500/10"
+									>
+										{/* unmasked like the input prompt: it is a code or link the user must act on */}
+										<Notice text={j.notice} />
+									</div>
 								)}
 
 								{v.active && j.input_prompt && (
@@ -465,51 +487,5 @@ function Downloads() {
 				</div>
 			) : null}
 		</>
-	);
-}
-
-// A service waiting on the user (OTP, PIN, device-code confirmation). The job holds its
-// slot and fails with AUTH_FAILED if nobody answers within the server's timeout.
-function InputPrompt({
-	prompt,
-	busy,
-	onAnswer
-}: {
-	prompt: string;
-	busy: boolean;
-	onAnswer: (response: string) => void;
-}) {
-	const [answer, setAnswer] = useState('');
-	const id = useId();
-	return (
-		<form
-			className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-500/10"
-			onSubmit={(e) => {
-				e.preventDefault();
-				onAnswer(answer);
-				setAnswer('');
-			}}
-		>
-			<label
-				htmlFor={id}
-				className="flex items-start gap-2 text-sm font-medium whitespace-pre-wrap text-amber-800 dark:text-amber-200"
-			>
-				<Icon name="alert" size={16} className="mt-0.5 shrink-0" />
-				{prompt}
-			</label>
-			<div className="mt-2 flex gap-2">
-				<input
-					id={id}
-					value={answer}
-					onChange={(e) => setAnswer(e.target.value)}
-					autoComplete="one-time-code"
-					className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-				/>
-				<Button type="submit" disabled={busy}>
-					{busy ? <Icon name="loader" spin /> : null}
-					Send
-				</Button>
-			</div>
-		</form>
 	);
 }

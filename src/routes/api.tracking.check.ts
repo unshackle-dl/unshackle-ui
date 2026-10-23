@@ -26,7 +26,7 @@ export const Route = createFileRoute('/api/tracking/check')({
 				}
 
 				const trigger = str(body.trigger) === 'stale-kick' ? 'stale-kick' : 'manual';
-				// The banner only appears for overdue titles, so a stale-kick sweeps just those.
+				// The banner only appears for overdue titles, so a stale-kick sweeps only those.
 				// The button on the page is a person asking for a full sweep.
 				const scan = await runScan({ trigger, trackId: id, dueOnly: trigger === 'stale-kick' });
 				return scan.started

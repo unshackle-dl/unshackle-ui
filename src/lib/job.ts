@@ -26,6 +26,9 @@ export function tone(status: string | undefined): Tone {
 
 // --skip-dl jobs fetch keys only, no media; their progress is reworded.
 export const isKeysOnly = (params: Record<string, unknown> | undefined) => !!params?.skip_dl;
+// What a job fetches: keys only, a clip of the title (`sample: true` or "START-END"), or the title.
+export const jobKind = (params: Record<string, unknown> | undefined) =>
+	isKeysOnly(params) ? 'Keys' : params?.sample ? 'Sample' : 'Download';
 
 export interface JobView {
 	label: string;
@@ -61,7 +64,9 @@ export function jobView(job: Job): JobView {
 		keysOnly,
 		statusLabel: keysOnly && active ? 'obtaining keys' : job.status,
 		done: t === 'green',
-		doneLabel: keysOnly ? 'Keys obtained' : 'Done',
+		doneLabel: { Keys: 'Keys obtained', Sample: 'Sample saved', Download: 'Done' }[
+			jobKind(job.parameters)
+		],
 		message: job.phase || job.message || null,
 		error: job.error || job.error_message || null,
 		episodes: ep,

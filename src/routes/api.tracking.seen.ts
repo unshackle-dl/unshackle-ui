@@ -5,7 +5,7 @@ import { callerKey } from '../server/owner';
 export const Route = createFileRoute('/api/tracking/seen')({
 	server: {
 		handlers: {
-			// Clears every unseen item on every track this key owns. No body.
+			// Clears every unseen item on every track this API key owns. No body.
 			POST: ({ request }) => Response.json({ marked: markAllSeen(callerKey(request)) })
 		}
 	}

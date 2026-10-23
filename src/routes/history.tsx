@@ -8,14 +8,14 @@ import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import EmptyState from '$lib/components/EmptyState';
 import Icon from '$lib/components/Icon';
-import { isKeysOnly, tone } from '$lib/job';
+import { jobKind, tone } from '$lib/job';
 import { useMask } from '$lib/stores/incognito';
 
 export const Route = createFileRoute('/history')({ component: History });
 
 const PAGE = 100;
 
-const keysOnly = (e: HistoryEntry) => isKeysOnly(e.parameters);
+const kind = (e: HistoryEntry) => jobKind(e.parameters);
 const toArr = (v: unknown): string[] =>
 	Array.isArray(v) ? v.map(String) : v == null || v === '' ? [] : [String(v)];
 
@@ -63,7 +63,7 @@ function History() {
 	// job_ids whose selection detail is expanded.
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [removing, setRemoving] = useState<Set<string>>(new Set());
-	// Delete failures need somewhere to go that the query's own error can't hold.
+	// Delete failures need somewhere to go that the query's own error cannot hold.
 	const [actionError, setActionError] = useState<string | null>(null);
 
 	const queryKey = ['history', limit, serviceFilter] as const;
@@ -200,9 +200,7 @@ function History() {
 										<div className="min-w-0 flex-1">
 											<div className="flex items-center gap-2">
 												<Badge tone={tone(e.status)}>{e.status}</Badge>
-												<Badge tone={keysOnly(e) ? 'amber' : 'neutral'}>
-													{keysOnly(e) ? 'Keys' : 'Download'}
-												</Badge>
+												<Badge tone={kind(e) === 'Download' ? 'neutral' : 'amber'}>{kind(e)}</Badge>
 												<span className="truncate font-medium text-neutral-900 dark:text-neutral-100">
 													{mask.title(e.title || e.title_id)}
 												</span>
@@ -235,7 +233,14 @@ function History() {
 
 									{isOpen && (
 										<div className="mt-3 space-y-2 border-t border-neutral-100 pt-3 dark:border-neutral-800">
-											<ChipRow label="Type" items={[keysOnly(e) ? 'Keys only' : 'Full download']} />
+											<ChipRow
+												label="Type"
+												items={[
+													{ Keys: 'Keys only', Sample: 'Sample clip', Download: 'Full download' }[
+														kind(e)
+													]
+												]}
+											/>
 											<ChipRow
 												label="Episodes"
 												items={s.episodes.length ? s.episodes : ['Movie']}

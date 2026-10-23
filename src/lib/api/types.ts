@@ -83,7 +83,7 @@ export interface VideoTrack {
 }
 
 export interface TrackDrm {
-	type: string; // widevine | playready | ...
+	type: string; // `widevine` | `playready` | ...
 	[key: string]: unknown;
 }
 
@@ -173,6 +173,8 @@ export interface Job {
 	skipped_subtitles?: { id: string; language: string; title?: string | null }[];
 	// Set while a service waits on user input (OTP, PIN, …); answer via api.answerJob.
 	input_prompt?: string | null;
+	// Set while a service waits on an approval elsewhere (pair code, app prompt); needs no answer.
+	notice?: string | null;
 	// Present when the list is fetched with full=true (and on /jobs/{id}).
 	parameters?: { wanted?: string[]; [key: string]: unknown };
 	started_time?: string | null;
@@ -215,6 +217,20 @@ export interface ServerConfig {
 		cache: string;
 	};
 	services: string[];
+	// remote_services server names (url and API key stay on the serve).
+	remote_services?: string[];
+}
+
+// GET /api/remote/logins: list calls waiting on a remote server's login.
+export interface RemoteLogin {
+	id: string;
+	remote: string;
+	service: string;
+	title_id: string;
+	// What the login asks the user (an OTP, a PIN), answered via api.answerRemoteLogin, or null.
+	prompt: string | null;
+	// What the login shows while it waits on the user (a URL and pair code), or null.
+	notice: string | null;
 }
 
 export interface ConfigResponse {

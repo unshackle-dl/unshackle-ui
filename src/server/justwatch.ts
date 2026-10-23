@@ -1,5 +1,5 @@
 // Server-side JustWatch client. apis.justwatch.com sends no CORS headers, so the browser
-// can never call it directly; the api.browse.* routes proxy through here. No key, no auth:
+// can never call it directly; the api.browse.* routes proxy through here. No API key, no auth:
 // country and language are plain GraphQL variables.
 import { cleanOfferUrl } from '$lib/browse/match';
 import type {
@@ -50,7 +50,7 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
 	return body.data;
 }
 
-// ponytail: in-memory TTL cache, a restart just refetches; sqlite if that ever hurts
+// ponytail: in-memory TTL cache, a restart refetches; sqlite if that ever hurts
 const cache = new Map<string, { at: number; data: unknown }>();
 async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
 	const hit = cache.get(key);
@@ -96,7 +96,7 @@ function toTitle(node: TitleNode): BrowseTitle {
 	};
 }
 
-// One query for both the popular grid and search: searchQuery is just a filter key.
+// One query for both the popular grid and search: searchQuery is only a filter key.
 const TITLES_QUERY = `
 query Titles($country: Country!, $language: Language!, $filter: TitleFilter!, $first: Int!, $profile: PosterProfile) {
 	popularTitles(country: $country, filter: $filter, first: $first, sortBy: POPULAR, sortRandomSeed: 0) {
@@ -197,7 +197,7 @@ async function titleCountries(fullPath: string): Promise<string[]> {
 }
 
 /**
- * JustWatch's Apple TV offer for a show deep-links its first episode, and ATV can't resolve
+ * JustWatch's Apple TV offer for a show deep-links its first episode, and ATV cannot resolve
  * episode ids. The episode page embeds its show's id, so swap the URL for the show page.
  * Returns the input on any failure.
  */

@@ -5,7 +5,7 @@ import { TERMINAL_EVENTS } from '$lib/job';
 import { browser } from '$lib/store';
 import type { Job } from './types';
 
-// The stream sends a `snapshot` first, then updates, then exactly one terminal
+// The event stream sends a `snapshot` first, then updates, then exactly one terminal
 // event, after which the server closes it.
 const UPDATE_EVENTS = ['snapshot', 'status', 'progress'] as const;
 
@@ -27,7 +27,7 @@ export function patchJobList(cached: unknown, event: Job): unknown {
 
 /**
  * Streams live progress for the given jobs into the TanStack Query cache, one
- * EventSource per job id. Returns whether any stream is open.
+ * EventSource per job id. Returns whether any EventSource is open.
  */
 export function useJobEvents(jobIds: string[]): boolean {
 	const queryClient = useQueryClient();
@@ -71,7 +71,7 @@ export function useJobEvents(jobIds: string[]): boolean {
 				es.close();
 				map.delete(id);
 				sync();
-				// A job that just left `downloading` may belong in a different filtered list.
+				// A job that has left `downloading` may belong in a different filtered list.
 				queryClient.invalidateQueries({ queryKey: ['jobs'] });
 			};
 

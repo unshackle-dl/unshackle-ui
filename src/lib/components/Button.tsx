@@ -11,6 +11,10 @@ const variants: Record<Variant, string> = {
 		'bg-red-100 text-red-700 hover:bg-red-200 focus-visible:ring-red-500 disabled:opacity-50 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25'
 };
 
+/** The button look, for an element that must stay a link (an `<a>` to another site). */
+export const buttonClass = (variant: Variant = 'primary') =>
+	`inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed ${variants[variant]}`;
+
 export default function Button({
 	variant = 'primary',
 	type = 'button',
@@ -19,11 +23,7 @@ export default function Button({
 	...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
 	return (
-		<button
-			type={type}
-			className={`inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed ${variants[variant]} ${className}`}
-			{...rest}
-		>
+		<button type={type} className={`${buttonClass(variant)} ${className}`} {...rest}>
 			{children}
 		</button>
 	);

@@ -11,6 +11,7 @@ import type {
 	TrackItem,
 	TrackPreset,
 	TrackRecord,
+	TitlePayload,
 	TrackSummary
 } from './types';
 
@@ -68,7 +69,7 @@ export interface TrackDetail {
 
 export interface AddTrackInput {
 	label: string;
-	payload: { service: string; title_id: string };
+	payload: TitlePayload;
 	preset: TrackPreset;
 	codes: SeedCode[];
 	/** true stamps the seeded codes as already seen, so only later arrivals are "new". */
@@ -85,7 +86,7 @@ export const tracking = {
 
 	settings: () => request<TrackingSettings>('/api/tracking/settings'),
 
-	/** Values set as given; null or '' reverts that key to its env value. */
+	/** Values set as given; null or '' reverts that setting to its env value. */
 	saveSettings: (patch: Record<string, string | number | null>) =>
 		request<TrackingSettings>('/api/tracking/settings', {
 			method: 'PUT',

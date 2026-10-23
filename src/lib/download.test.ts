@@ -70,7 +70,12 @@ const BACKEND_HONORED = new Set([
 	'enrich',
 	'output_dir',
 	'no_cache',
-	'reset_cache'
+	'reset_cache',
+	'audio_description_only',
+	'forced_subs_only',
+	'all_drm',
+	'sample',
+	'include_sample'
 ]);
 
 test('every advanced field maps to a backend-honored download param', () => {
@@ -113,6 +118,19 @@ test('buildAdvanced keeps slow range strings', () => {
 	const v = blankAdvanced();
 	v.slow = '20-40';
 	assert.deepEqual(buildAdvanced(v), { slow: '20-40' });
+});
+
+test('buildAdvanced sends sample as a boolean or a window string', () => {
+	const v = blankAdvanced();
+	for (const [input, sent] of [
+		['true', true],
+		['True', true],
+		['false', false],
+		['0-60', '0-60']
+	] as const) {
+		v.sample = input;
+		assert.deepEqual(buildAdvanced(v), { sample: sent });
+	}
 });
 
 test('buildAdvanced ignores non-numeric numbers', () => {

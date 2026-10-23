@@ -2,7 +2,8 @@
 // and from the title page's form state, and narrowed to what a listing call may carry.
 //
 // Pure and isomorphic: the poller and the browser must share one implementation, so this
-// imports only $lib/options and $lib/download, both of which are type-and-logic only.
+// imports only $lib/options, $lib/download and $lib/api/relay, all type-and-logic only.
+import { relayFields } from '$lib/api/relay';
 import { ADVANCED_FIELDS, blankAdvanced } from '$lib/download';
 import { blankValues, coerce, type Field } from '$lib/options';
 import type { TitlePayload, TrackPreset } from './types';
@@ -26,12 +27,12 @@ export interface PresetForm {
 const ADVANCED_KEYS = new Set(ADVANCED_FIELDS.map((f) => f.key));
 
 /**
- * Advanced-catalog keys that actually reach `get_titles()`. Verified against
+ * Advanced-catalogue keys that reach `get_titles()`. Verified against
  * `build_parent_ctx` / `instantiate_service`: listing only ever receives the transport
- * options plus the service's own cli params. Everything else in the catalog is
+ * options plus the service's own cli params. Everything else in the catalogue is
  * track-level and cannot change which episodes exist.
  *
- * `cdm_type` is not in the catalog today; it is whitelisted so it works the moment it is.
+ * `cdm_type` is not in the catalogue today; it is whitelisted so it works the moment it is.
  */
 export const LIST_AFFECTING_KEYS: readonly string[] = ['profile', 'proxy', 'no_proxy', 'cdm_type'];
 
@@ -48,7 +49,7 @@ export const LIST_AFFECTING_KEYS: readonly string[] = ['profile', 'proxy', 'no_p
 const INERT_KEYS = new Set(['tvdb_id', 'tvdb_order', 'tmdb_id', 'anilist_id', 'enrich']);
 
 /**
- * The title page's chip selectors. They are not in the advanced catalog, so the
+ * The title page's chip selectors. They are not in the advanced catalogue, so the
  * pass-through rule below would otherwise mistake them for service cli options. Verified:
  * no service's `get_titles()` reads vcodec/quality/range, and `build_parent_ctx` only ever
  * populates `{proxy, no_proxy}` during listing.
@@ -58,8 +59,8 @@ const TRACK_LEVEL_KEYS = new Set(['wanted', 'quality', 'vcodec', 'range', 'a_lan
 /**
  * Build the `POST /api/list-titles` body for a tracked title.
  *
- * Keeps the transport options plus every key that is not part of the advanced download
- * catalog: those are the service's own cli options (DSNP `extras`, VIKI `is_movie`,
+ * Keeps the transport options plus every option that is not part of the advanced download
+ * catalogue: those are the service's own cli options (DSNP `extras`, VIKI `is_movie`,
  * NOWTV `region`, …), and ~40 services read one in `get_titles()`. Omitting them makes
  * detection disagree with what a download would resolve.
  */
@@ -73,8 +74,13 @@ export function buildListParams(
 		if (ADVANCED_KEYS.has(k) && !LIST_AFFECTING_KEYS.includes(k)) continue;
 		out[k] = v;
 	}
-	// Transport keys last: service/title_id identify the title and must not be overridden.
-	return { ...out, service: payload.service, title_id: payload.title_id };
+	// Transport keys last: service/title_id (and remote) identify the title and must not be overridden.
+	return {
+		...out,
+		service: payload.service,
+		title_id: payload.title_id,
+		...relayFields(payload.remote)
+	};
 }
 
 /** Form state → the flat dict stored on the record. */
@@ -108,7 +114,7 @@ export function applyPreset(preset: TrackPreset, svcFields: Field[]): PresetForm
 	const advancedByKey = new Map(ADVANCED_FIELDS.map((f) => [f.key, f]));
 	const svcByKey = new Map(svcFields.map((f) => [f.key, f]));
 	for (const [k, v] of Object.entries(preset)) {
-		// Service fields win: a service may legitimately name an option the catalog also
+		// Service fields win: a service may legitimately name an option the catalogue also
 		// has, and the service's own control is the one shown for it.
 		const svc = svcByKey.get(k);
 		if (svc) {
