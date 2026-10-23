@@ -1,6 +1,13 @@
 import { config } from '../config';
 import { download } from '../upstream';
-import { dueSchedules, finishSchedule, type ScheduleInput, type ScheduleRecord } from './store';
+import {
+	claimSchedule,
+	dueSchedules,
+	finishSchedule,
+	type ScheduleInput,
+	type ScheduleRecord
+} from './store';
+import { nextWeeklyRun } from './recurrence';
 
 export function validateSchedule(input: ScheduleInput): number {
 	if (!input || typeof input !== 'object') throw new Error('Invalid schedule.');
@@ -20,6 +27,21 @@ export function validateSchedule(input: ScheduleInput): number {
 	} catch {
 		throw new Error('Invalid time zone. Use an IANA name such as America/New_York.');
 	}
+	if (input.recurrence) {
+		if (typeof input.recurrence !== 'object' || Array.isArray(input.recurrence))
+			throw new Error('Invalid weekly recurrence.');
+		const { daysOfWeek, time } = input.recurrence;
+		if (
+			!Array.isArray(daysOfWeek) ||
+			daysOfWeek.length === 0 ||
+			daysOfWeek.some((day) => !Number.isInteger(day) || day < 0 || day > 6) ||
+			new Set(daysOfWeek).size !== daysOfWeek.length
+		)
+			throw new Error('Choose one or more valid weekdays.');
+		if (typeof time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(time))
+			throw new Error('Enter a valid local time in HH:mm:ss format.');
+		return nextWeeklyRun(input.recurrence, input.timeZone, Date.now());
+	}
 	const when = input.runAt ? Date.parse(input.runAt) : NaN;
 	if (!Number.isFinite(when)) throw new Error('Enter a valid date and time for the one-time run.');
 	if (when < Date.now() + 5_000)
@@ -29,6 +51,7 @@ export function validateSchedule(input: ScheduleInput): number {
 
 async function execute(schedule: ScheduleRecord & { ownerKey: string }): Promise<void> {
 	if (!config.apiUrlConfigured) return;
+	if (!claimSchedule(schedule.id, schedule.nextRunAt!, Date.now())) return;
 	try {
 		const result = await download(schedule.request, schedule.ownerKey);
 		finishSchedule(schedule.id, { jobId: result.job_id });
@@ -69,7 +92,7 @@ export function startScheduler(): void {
 			g.__unshackleSchedulerBusy = false;
 		}
 	};
-	g.__unshackleSchedulerTimer = setInterval(tick, 5_000);
+	g.__unshackleSchedulerTimer = setInterval(tick, 1_000);
 	g.__unshackleSchedulerTimer.unref();
 	void tick();
 }

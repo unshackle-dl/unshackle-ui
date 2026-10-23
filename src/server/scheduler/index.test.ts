@@ -48,6 +48,27 @@ test('submits the due request with its owner key and records the upstream job id
 	assert.equal(store.getSchedule(schedule.id, 'owner-key')?.lastStatus, 'submitted');
 });
 
+test('keeps a weekly schedule active and advances it after submission', async () => {
+	const input = {
+		...dueInput(),
+		recurrence: { daysOfWeek: [2], time: '22:00:00' }
+	};
+	const schedule = store.createSchedule(
+		input,
+		Date.now() - 1_000,
+		new Request('http://localhost', { headers: { 'X-Secret-Key': 'owner-key' } })
+	);
+	download.mockResolvedValue({ job_id: 'weekly-job' });
+
+	await scheduler.runSchedulerTick();
+
+	const result = store.getSchedule(schedule.id, 'owner-key');
+	assert.equal(result?.state, 'active');
+	assert.ok((result?.nextRunAt ?? 0) > Date.now());
+	assert.equal(result?.runs[0]?.status, 'submitted');
+	assert.equal(result?.runs[0]?.jobId, 'weekly-job');
+});
+
 test('records an upstream failure as failed and completed', async () => {
 	const schedule = createDueSchedule();
 	download.mockRejectedValue(new Error('upstream unavailable'));

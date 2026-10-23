@@ -32,7 +32,7 @@ function request(
 }
 
 beforeEach(() => {
-	db.exec('DELETE FROM schedule');
+	db.exec('DELETE FROM schedule_run; DELETE FROM schedule');
 	config.apiUrlConfigured = false;
 });
 afterAll(() => testDb.close());
@@ -71,6 +71,21 @@ test('creates and lists schedules only for the caller key', async () => {
 	assert.equal(createdBody.schedule.request.title_id, '123');
 	assert.equal((await ownList.json()).schedules.length, 1);
 	assert.equal((await otherList.json()).schedules.length, 0);
+});
+
+test('accepts a weekly recurrence with second precision', async () => {
+	const recurring = await createScheduleHandler(
+		request('POST', {
+			...payload,
+			runAt: undefined,
+			recurrence: { daysOfWeek: [2], time: '22:00:37' }
+		})
+	);
+	const body = await recurring.json();
+
+	assert.equal(recurring.status, 201);
+	assert.deepEqual(body.schedule.recurrence, { daysOfWeek: [2], time: '22:00:37' });
+	assert.ok(body.schedule.nextRunAt > Date.now());
 });
 
 test('only the owner can pause, resume, or delete a schedule', async () => {
