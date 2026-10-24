@@ -28,12 +28,14 @@ export function upstreamMessage(e: unknown): string {
 	return e instanceof Error ? e.message : String(e);
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, callerKey?: string): Promise<T> {
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
 		...((init?.headers as Record<string, string>) ?? {})
 	};
-	if (config.apiKey) headers['X-Secret-Key'] = config.apiKey;
+	if (callerKey !== undefined) {
+		if (callerKey !== 'anonymous') headers['X-Secret-Key'] = callerKey;
+	} else if (config.apiKey) headers['X-Secret-Key'] = config.apiKey;
 
 	let res: Response;
 	try {
@@ -87,4 +89,16 @@ export function history(query?: { limit?: number; service?: string }): Promise<H
 	if (query?.service) params.set('service', query.service);
 	const qs = params.toString();
 	return request<HistoryResponse>(`/api/history${qs ? `?${qs}` : ''}`);
+}
+
+/** Submit a download using the same server-side authentication and error handling. */
+export function download(
+	body: Record<string, unknown>,
+	callerKey?: string
+): Promise<{ job_id: string }> {
+	return request<{ job_id: string }>(
+		'/api/download',
+		{ method: 'POST', body: JSON.stringify(body) },
+		callerKey
+	);
 }

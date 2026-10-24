@@ -16,6 +16,7 @@ import { profilesQuery, servicesQuery, trackQuery, tracksQuery } from '$lib/quer
 import { getSettings, useSettings } from '$lib/config';
 import { useMask } from '$lib/stores/incognito';
 import { tracking, trackingErrorMessage } from '$lib/tracking/client';
+import { schedules } from '$lib/schedules/client';
 import { buildListParams, buildPreset } from '$lib/tracking/preset';
 import type { TrackPreset } from '$lib/tracking/types';
 import { hasParts, isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
@@ -120,13 +121,17 @@ function TitlePage() {
 	const [audioSel, setAudioSel] = useState<string[]>([]);
 	const [subSel, setSubSel] = useState<string[]>([]);
 	const [trackOpen, setTrackOpen] = useState(false);
+	const [scheduleOpen, setScheduleOpen] = useState(false);
+	const [scheduleAt, setScheduleAt] = useState('');
+	const [scheduleWeekly, setScheduleWeekly] = useState(false);
+	const [scheduleDays, setScheduleDays] = useState<number[]>([]);
+	const [scheduleTime, setScheduleTime] = useState('22:00:00');
 	const [advanced, setAdvanced] = useState<OptionValues>(() => ({
 		...blankAdvanced(),
 		profile: search.profile ?? '',
 		proxy: search.proxy ?? '',
 		no_proxy: search.no_proxy ?? false
 	}));
-
 	// Named profiles for this service; undefined keeps the free-text advanced field.
 	const profiles = useQuery(profilesQuery);
 	const profileOptions = profiles.isError ? null : (profiles.data?.[service] ?? null);
@@ -259,26 +264,36 @@ function TitlePage() {
 	// means no marker.
 	const originalLangs = combined?.originalAudioLangs ?? [];
 
+	const makeDownloadRequest = () =>
+		buildDownloadRequest(
+			{ service, title_id: titleId },
+			{
+				// An empty selection means all episodes; send them so progress can list them.
+				wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
+				quality: qualitySel,
+				vcodec: codecSel,
+				range: rangeSel,
+				a_lang: audioSel,
+				s_lang: subSel
+			},
+			advanced,
+			svcFields,
+			svcValues
+		);
 	const start = useMutation({
-		mutationFn: () =>
-			api.download(
-				buildDownloadRequest(
-					{ service, title_id: titleId },
-					{
-						// An empty selection means all episodes; send them so progress can list them.
-						wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
-						quality: qualitySel,
-						vcodec: codecSel,
-						range: rangeSel,
-						a_lang: audioSel,
-						s_lang: subSel
-					},
-					advanced,
-					svcFields,
-					svcValues
-				)
-			),
+		mutationFn: () => api.download(makeDownloadRequest()),
 		onSuccess: () => navigate({ to: '/downloads' })
+	});
+	const scheduleDownload = useMutation({
+		mutationFn: () =>
+			schedules.create({
+				name: header,
+				runAt: scheduleWeekly ? undefined : new Date(scheduleAt).toISOString(),
+				timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				request: makeDownloadRequest(),
+				recurrence: scheduleWeekly ? { daysOfWeek: scheduleDays, time: scheduleTime } : null
+			}),
+		onSuccess: () => setScheduleOpen(false)
 	});
 
 	return (
@@ -592,6 +607,14 @@ function TitlePage() {
 											</>
 										)}
 									</Button>
+									<Button
+										variant="secondary"
+										onClick={() => setScheduleOpen((open) => !open)}
+										className="w-full sm:w-auto"
+									>
+										<Icon name="calendar" />
+										Schedule
+									</Button>
 
 									{/* Series only: the tracking routes reject every other kind. */}
 									{episodic &&
@@ -617,6 +640,88 @@ function TitlePage() {
 											</Button>
 										))}
 								</div>
+								{scheduleOpen && (
+									<div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
+										<label className="flex items-center gap-2 text-sm">
+											<input
+												type="checkbox"
+												checked={scheduleWeekly}
+												onChange={(event) => setScheduleWeekly(event.target.checked)}
+											/>
+											Repeat weekly
+										</label>
+										{scheduleWeekly ? (
+											<>
+												<fieldset className="w-full">
+													<legend className="mb-2 text-sm">
+														Weekdays ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+													</legend>
+													<div className="flex flex-wrap gap-3">
+														{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
+															(day, index) => (
+																<label key={day} className="flex items-center gap-1 text-sm">
+																	<input
+																		type="checkbox"
+																		checked={scheduleDays.includes(index)}
+																		onChange={() =>
+																			setScheduleDays((days) =>
+																				days.includes(index)
+																					? days.filter((value) => value !== index)
+																					: [...days, index].sort()
+																				)
+																			}
+																		/>
+																		{day}
+																	</label>
+															)
+														)}
+													</div>
+												</fieldset>
+												<label className="text-sm">
+													Time (hour:minute:second)
+													<input
+														type="time"
+														step="1"
+														value={scheduleTime}
+														onChange={(event) => setScheduleTime(event.target.value)}
+														className="mt-1 block rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
+													/>
+												</label>
+												<p className="w-full text-xs text-neutral-500">
+													If the server was offline, one overdue run is submitted on restart; older missed
+													weeks are skipped. This is when the job is sent to the API.
+												</p>
+											</>
+										) : (
+											<label className="text-sm">
+												Run at ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+												<input
+													type="datetime-local"
+													step="1"
+													value={scheduleAt}
+													onChange={(event) => setScheduleAt(event.target.value)}
+													className="mt-1 block rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
+												/>
+											</label>
+										)}
+										<Button
+											disabled={
+												(!scheduleWeekly && !scheduleAt) ||
+												(scheduleWeekly && scheduleDays.length === 0) ||
+												scheduleDownload.isPending
+											}
+											onClick={() => scheduleDownload.mutate()}
+										>
+											<Icon name="calendar" />
+											Save schedule
+										</Button>
+										{scheduleDownload.error && (
+											<p className="w-full text-sm text-red-600">
+												{String(scheduleDownload.error)}
+											</p>
+										)}
+									</div>
+								)}
 							</div>
 						) : (
 							<div className="mt-4 flex items-center gap-2 py-4 text-sm text-neutral-400 dark:text-neutral-500">

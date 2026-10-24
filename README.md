@@ -35,7 +35,7 @@ npm run build
 npm start        # http://localhost:3000, PORT to change it
 ```
 
-Title tracking runs a sqlite store and poller inside the Node server, so this needs a **Node runtime, not a static host**, and `data/` must be writable and persist across restarts.
+Title tracking and scheduled downloads run from the Node server, so this needs a **Node runtime, not a static host**, and `data/` must be writable and persist across restarts. Scheduled downloads can run once or repeat on selected weekdays at a local hour, minute, and second. The saved time zone is used for recurrence, and each run submits a job to unshackle; it does not guarantee when that job begins processing. If the server is offline, one overdue run is submitted when it starts again and additional missed weeks are skipped.
 
 ## Configuration
 

@@ -12,6 +12,7 @@ import {
 } from './config';
 import { getDb } from './db';
 import { restartPoller } from './poller';
+import { restartScheduler } from './scheduler';
 
 const KEYS = Object.keys(SETTING_ENV) as SettingKey[];
 const metaKey = (k: SettingKey) => `cfg.${k}`;
@@ -102,5 +103,6 @@ export function updateSettings(patch: Record<string, unknown>): UpdateResult {
 
 	loadSettings();
 	restartPoller();
+	restartScheduler();
 	return { ok: true };
 }
