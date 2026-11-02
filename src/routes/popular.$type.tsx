@@ -56,7 +56,7 @@ function PopularPage() {
 						</div>
 					</Card>
 				) : list.data ? (
-					<PosterGrid titles={list.data.results} />
+					<PosterGrid titles={list.data.results} hideAdult />
 				) : (
 					<div className="mt-10 flex justify-center text-neutral-400">
 						<Icon name="loader" size={24} spin />

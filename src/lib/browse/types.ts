@@ -13,6 +13,8 @@ export interface BrowseTitle {
 	synopsis: string | null;
 	runtime: number | null;
 	backdropUrl: string | null;
+	/** Adult-rated or unrated in the request's country; hidden from popular grids by default. */
+	adult: boolean;
 }
 
 export interface BrowseOffer {

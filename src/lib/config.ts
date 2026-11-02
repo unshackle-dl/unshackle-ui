@@ -7,6 +7,8 @@ export interface Settings {
 	country: string;
 	/** A remote_services server name on the serve, or '' for its own services. */
 	remote: string;
+	/** Show adult or unrated titles in the popular grids. */
+	showAdult: boolean;
 }
 
 const KEY = 'unshackle.settings';
@@ -15,7 +17,8 @@ const defaults: Settings = {
 	apiUrl: import.meta.env.PUBLIC_UNSHACKLE_API_URL || 'http://localhost:8786',
 	apiKey: import.meta.env.PUBLIC_UNSHACKLE_API_KEY || '',
 	country: 'US',
-	remote: ''
+	remote: '',
+	showAdult: false
 };
 
 function load(): Settings {

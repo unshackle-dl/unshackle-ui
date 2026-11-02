@@ -320,11 +320,11 @@ function Browse() {
 				<div className="mt-10 space-y-8">
 					<section>
 						<PopularHeader label="Popular movies" type="movies" />
-						<PosterGrid titles={popular.data.movies} />
+						<PosterGrid titles={popular.data.movies} hideAdult limit={5} />
 					</section>
 					<section>
 						<PopularHeader label="Popular TV" type="tv" />
-						<PosterGrid titles={popular.data.shows} />
+						<PosterGrid titles={popular.data.shows} hideAdult limit={5} />
 					</section>
 				</div>
 			) : popular.error ? (

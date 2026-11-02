@@ -7,7 +7,7 @@ import Badge from '$lib/components/Badge';
 import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import Icon from '$lib/components/Icon';
-import { settings, useSettings } from '$lib/config';
+import { type Settings, settings, useSettings } from '$lib/config';
 import { statusQuery } from '$lib/queries';
 import { useMask } from '$lib/stores/incognito';
 
@@ -46,23 +46,18 @@ function SettingsPage() {
 	const queryClient = useQueryClient();
 	const current = useSettings();
 
-	const [draft, setDraft] = useState({
-		apiUrl: current.apiUrl,
-		apiKey: current.apiKey,
-		country: current.country,
-		remote: current.remote
-	});
+	const [draft, setDraft] = useState<Settings>(current);
 	const [saved, setSaved] = useState(false);
 
 	function save() {
 		settings.set({
+			...draft,
 			apiUrl: draft.apiUrl.trim(),
 			apiKey: draft.apiKey.trim(),
 			// Anything that is not a 2-letter code silently falls back to US.
 			country: /^[A-Za-z]{2}$/.test(draft.country.trim())
 				? draft.country.trim().toUpperCase()
-				: 'US',
-			remote: draft.remote
+				: 'US'
 		});
 		// Everything cached was fetched from the old base URL / API key. removeQueries, not
 		// clear(), so the in-flight "test & save" mutation that calls this survives.
@@ -221,6 +216,22 @@ function SettingsPage() {
 								/>
 								<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
 									2-letter code for JustWatch availability on the browse pages.
+								</p>
+							</div>
+
+							<div>
+								<label className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
+									<input
+										type="checkbox"
+										checked={draft.showAdult}
+										onChange={(e) => setDraft((d) => ({ ...d, showAdult: e.target.checked }))}
+										className="accent-accent-600"
+									/>
+									Show adult or unrated titles
+								</label>
+								<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+									Popular lists hide titles rated 18+ or not rated in your country. Search is never
+									filtered.
 								</p>
 							</div>
 

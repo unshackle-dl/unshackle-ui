@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import type { BrowseTitle } from '$lib/browse/types';
+import { useSettings } from '$lib/config';
 import { useMask } from '$lib/stores/incognito';
 import Badge from './Badge';
 import Icon from './Icon';
@@ -7,15 +8,22 @@ import Icon from './Icon';
 /** Grid of JustWatch posters linking into /browse/$id. */
 export default function PosterGrid({
 	titles,
-	showType = false
+	showType = false,
+	hideAdult = false,
+	limit
 }: {
 	titles: BrowseTitle[];
 	showType?: boolean;
+	/** Drop adult titles unless the user turned them on in Settings. */
+	hideAdult?: boolean;
+	limit?: number;
 }) {
 	const mask = useMask();
+	const { showAdult } = useSettings();
+	const shown = (hideAdult && !showAdult ? titles.filter((t) => !t.adult) : titles).slice(0, limit);
 	return (
 		<div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
-			{titles.map((t) => (
+			{shown.map((t) => (
 				<Link key={t.id} to="/browse/$id" params={{ id: t.id }} className="group min-w-0">
 					{t.posterUrl ? (
 						<img

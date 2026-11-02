@@ -72,6 +72,7 @@ interface ContentNode {
 	fullPath?: string | null;
 	genres?: { translation?: string | null }[] | null;
 	posterUrl?: string | null;
+	ageCertification?: string | null;
 	backdrops?: { backdropUrl?: string | null }[] | null;
 }
 
@@ -79,6 +80,15 @@ interface TitleNode {
 	id: string;
 	objectType: 'MOVIE' | 'SHOW';
 	content?: ContentNode | null;
+}
+
+/**
+ * JustWatch has no adult flag, and in some regions (IN) the softcore titles topping
+ * "popular" carry no rating at all, so unrated counts as adult alongside 18+ ratings.
+ */
+export function isAdult(cert: string | null | undefined): boolean {
+	const c = (cert ?? '').trim();
+	return !c || /^(unrated|nr|not rated|a|x.*|nc-17|r21)$|18/i.test(c);
 }
 
 function toTitle(node: TitleNode): BrowseTitle {
@@ -92,7 +102,8 @@ function toTitle(node: TitleNode): BrowseTitle {
 		genres: (c.genres ?? []).map((g) => g?.translation ?? '').filter(Boolean),
 		synopsis: c.shortDescription ?? null,
 		runtime: c.runtime ?? null,
-		backdropUrl: img(c.backdrops?.[0]?.backdropUrl)
+		backdropUrl: img(c.backdrops?.[0]?.backdropUrl),
+		adult: isAdult(c.ageCertification)
 	};
 }
 
@@ -103,7 +114,7 @@ query Titles($country: Country!, $language: Language!, $filter: TitleFilter!, $f
 		edges { node {
 			id objectType
 			content(country: $country, language: $language) {
-				title originalReleaseYear shortDescription
+				title originalReleaseYear shortDescription ageCertification
 				genres { translation(language: $language) }
 				posterUrl(profile: $profile, format: JPG)
 			}
@@ -130,14 +141,14 @@ async function fetchTitles(
 	return (data.popularTitles?.edges ?? []).map((e) => toTitle(e.node));
 }
 
-export function getPopular(country: string): Promise<PopularResponse> {
-	return cached(`popular:${country}`, 6 * 3600_000, async () => {
-		const [movies, shows] = await Promise.all([
-			fetchTitles(country, { objectTypes: ['MOVIE'] }, 5),
-			fetchTitles(country, { objectTypes: ['SHOW'] }, 5)
-		]);
-		return { movies, shows };
-	});
+/** Home rows: the head of the cached "All" lists. */
+export async function getPopular(country: string): Promise<PopularResponse> {
+	const [movies, shows] = await Promise.all([
+		popularList(country, 'MOVIE'),
+		popularList(country, 'SHOW')
+	]);
+	// Over-fetch: the UI hides adult titles and still wants 5 per row.
+	return { movies: movies.results.slice(0, 20), shows: shows.results.slice(0, 20) };
 }
 
 /** The "All" page for one type. */
@@ -163,7 +174,7 @@ query TitleDetail($nodeId: ID!, $country: Country!, $language: Language!) {
 		... on MovieOrShow {
 			id objectType
 			content(country: $country, language: $language) {
-				title originalReleaseYear shortDescription runtime fullPath
+				title originalReleaseYear shortDescription runtime fullPath ageCertification
 				genres { translation(language: $language) }
 				posterUrl(profile: S718, format: JPG)
 				backdrops(profile: S1920, format: JPG) { backdropUrl }
