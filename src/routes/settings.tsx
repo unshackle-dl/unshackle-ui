@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, errorMessage } from '$lib/api/client';
 import type { RefreshServicesResponse } from '$lib/api/types';
 import Badge from '$lib/components/Badge';
@@ -48,6 +48,8 @@ function SettingsPage() {
 
 	const [draft, setDraft] = useState<Settings>(current);
 	const [saved, setSaved] = useState(false);
+
+	useEffect(() => setDraft(current), [current]);
 
 	function save() {
 		settings.set({
