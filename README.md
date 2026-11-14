@@ -35,7 +35,7 @@ npm run build
 npm start        # http://localhost:3000, PORT to change it
 ```
 
-Title tracking and scheduled downloads run from the Node server, so this needs a **Node runtime, not a static host**, and `data/` must be writable and persist across restarts. Scheduled downloads can run once or repeat on selected weekdays at a local hour, minute, and second. The saved time zone is used for recurrence, and each run submits a job to unshackle; it does not guarantee when that job begins processing. If the server is offline, one overdue run is submitted when it starts again and additional missed weeks are skipped.
+Automatic tracking runs from the Node server, so this needs a **Node runtime, not a static host**, and `data/` must be writable and persist across restarts. When adding a series, enter its expected release weekday and time in your local time zone. Tracking checks at that weekly window, automatically submits newly listed episodes for download, and retries a delayed release every five minutes up to five times.
 
 ## Configuration
 
@@ -47,12 +47,11 @@ The server keeps its own settings, since the tracking poller cannot read the bro
 UNSHACKLE_API_URL=http://localhost:8786
 UNSHACKLE_API_KEY=           # sent as X-Secret-Key by the poller
 TRACKING_DB_PATH=./data/tracking.db
-TRACKING_INTERVAL_MS=21600000  # default check interval, 6h
 TRACKING_STAGGER_MS=30000      # gap between checks in a sweep
 TRACKING_WEBHOOK_URL=          # optional summary POST per check cycle
 ```
 
-Everything except `TRACKING_DB_PATH` is also editable live from the Tracking page's Settings dialog, which wins over the env vars. Tracked titles are scoped to the `X-Secret-Key` that created them.
+The API URL, API key, stagger, and webhook are editable live from the Tracking page's Settings dialog, which wins over the env vars. Tracked titles are scoped to the `X-Secret-Key` that created them.
 
 `TRACKING_WEBHOOK_URL` gets one JSON POST per cycle that found something: a twelve-episode drop is one notification, not twelve.
 

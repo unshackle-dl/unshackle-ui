@@ -18,6 +18,7 @@ import type {
 } from '$lib/tracking/types';
 import { config } from './config';
 import { owns } from './owner';
+import { previousRelease } from './release';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS track (
@@ -27,7 +28,12 @@ CREATE TABLE IF NOT EXISTS track (
   state TEXT NOT NULL DEFAULT 'active',
   added_at TEXT NOT NULL, last_checked TEXT, last_error TEXT,
   owner_key TEXT,                   -- NULL = shared
-  interval_ms INTEGER               -- NULL = the server-wide interval
+  release_day INTEGER NOT NULL DEFAULT 4,
+  release_time TEXT NOT NULL DEFAULT '22:00',
+  time_zone TEXT NOT NULL DEFAULT 'UTC',
+  retry_active INTEGER NOT NULL DEFAULT 0,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  pending_codes TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS track_item (
   track_id TEXT NOT NULL REFERENCES track(id) ON DELETE CASCADE,
@@ -44,19 +50,6 @@ CREATE TABLE IF NOT EXISTS scan (
   checked INTEGER DEFAULT 0, new_count INTEGER DEFAULT 0, error_count INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
-CREATE TABLE IF NOT EXISTS schedule (
-  id TEXT PRIMARY KEY, name TEXT NOT NULL, run_at INTEGER NOT NULL,
-  time_zone TEXT NOT NULL, request_json TEXT NOT NULL, owner_key TEXT NOT NULL,
-  state TEXT NOT NULL DEFAULT 'active', created_at INTEGER NOT NULL,
-  next_run_at INTEGER, last_run_at INTEGER, last_status TEXT,
-  last_error TEXT, last_job_id TEXT, recurrence_json TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_schedule_due ON schedule(state, next_run_at);
-CREATE TABLE IF NOT EXISTS schedule_run (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, schedule_id TEXT NOT NULL,
-  run_at INTEGER NOT NULL, status TEXT NOT NULL, error TEXT, job_id TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_schedule_run_schedule ON schedule_run(schedule_id, run_at DESC);
 `;
 
 declare global {
@@ -74,34 +67,21 @@ export function getDb(): DatabaseSync {
 	db.exec('PRAGMA foreign_keys = ON');
 	db.exec('PRAGMA busy_timeout = 5000');
 	db.exec(SCHEMA);
-	// Migrate schedules written by the earlier cron prototype; its unsupported cron rows
-	// must not remain active as one-time schedules.
-	const scheduleCols = db.prepare("SELECT name FROM pragma_table_info('schedule')").all() as {
-		name: string;
-	}[];
-	if (scheduleCols.length && !scheduleCols.some((c) => c.name === 'owner_key')) {
-		db.exec("ALTER TABLE schedule ADD COLUMN owner_key TEXT NOT NULL DEFAULT 'anonymous'");
-		const names = new Set(scheduleCols.map((c) => c.name));
-		if (names.has('kind'))
-			db.exec(
-				"UPDATE schedule SET state='completed', next_run_at=NULL, last_status='cancelled' WHERE kind='cron'"
-			);
-		for (const column of ['run_at', 'created_at', 'next_run_at', 'last_run_at']) {
-			if (names.has(column))
-				db.exec(
-					`UPDATE schedule SET ${column}=CAST((julianday(${column}) - 2440587.5) * 86400000 AS INTEGER) WHERE ${column} IS NOT NULL AND typeof(${column})='text'`
-				);
-		}
-	}
-	if (scheduleCols.length && !scheduleCols.some((c) => c.name === 'recurrence_json'))
-		db.exec('ALTER TABLE schedule ADD COLUMN recurrence_json TEXT');
-	// CREATE TABLE IF NOT EXISTS cannot add a column to a database from before the
-	// per-title interval existed.
+	// CREATE TABLE IF NOT EXISTS cannot add launch and retry state to older databases.
 	const cols = db.prepare("SELECT name FROM pragma_table_info('track')").all() as {
 		name: string;
 	}[];
-	if (!cols.some((c) => c.name === 'interval_ms'))
-		db.exec('ALTER TABLE track ADD COLUMN interval_ms INTEGER');
+	for (const [name, declaration] of Object.entries({
+		release_day: 'INTEGER NOT NULL DEFAULT 4',
+		release_time: "TEXT NOT NULL DEFAULT '22:00'",
+		time_zone: "TEXT NOT NULL DEFAULT 'UTC'",
+		retry_active: 'INTEGER NOT NULL DEFAULT 0',
+		retry_count: 'INTEGER NOT NULL DEFAULT 0',
+		pending_codes: "TEXT NOT NULL DEFAULT '[]'"
+	})) {
+		if (!cols.some((column) => column.name === name))
+			db.exec(`ALTER TABLE track ADD COLUMN ${name} ${declaration}`);
+	}
 	// unshackle replaced animeapi_id with anilist_id (same "mal:21" / "21" form).
 	db.exec(`UPDATE track SET preset = json_set(json_remove(preset, '$.animeapi_id'),
 		'$.anilist_id', coalesce(json_extract(preset, '$.anilist_id'), json_extract(preset, '$.animeapi_id')))
@@ -123,7 +103,12 @@ interface TrackRow {
 	last_checked: string | null;
 	last_error: string | null;
 	owner_key: string | null;
-	interval_ms: number | null;
+	release_day: number;
+	release_time: string;
+	time_zone: string;
+	retry_active: number;
+	retry_count: number;
+	pending_codes: string;
 }
 
 // The kind/payload pairing is enforced on insert, so the cast is safe on the way out.
@@ -138,7 +123,12 @@ function toRecord(row: TrackRow): TrackRecord {
 		added_at: row.added_at,
 		last_checked: row.last_checked,
 		last_error: row.last_error,
-		interval_ms: row.interval_ms == null ? null : Number(row.interval_ms)
+		release_day: Number(row.release_day),
+		release_time: row.release_time,
+		time_zone: row.time_zone,
+		retry_active: Boolean(row.retry_active),
+		retry_count: Number(row.retry_count),
+		pending_codes: JSON.parse(row.pending_codes) as string[]
 	} as TrackRecord;
 }
 
@@ -197,6 +187,9 @@ export interface CreateTrackInput {
 	/** true stamps every seeded code as already seen, so only later arrivals are "new". */
 	baseline: boolean;
 	owner: string;
+	releaseDay: number;
+	releaseTime: string;
+	timeZone: string;
 }
 
 export function createTrack(input: CreateTrackInput): TrackRecord {
@@ -206,8 +199,8 @@ export function createTrack(input: CreateTrackInput): TrackRecord {
 	db.exec('BEGIN');
 	try {
 		db.prepare(
-			`INSERT INTO track (id, kind, label, payload, preset, state, added_at, owner_key)
-			 VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`
+			`INSERT INTO track (id, kind, label, payload, preset, state, added_at, owner_key, release_day, release_time, time_zone)
+			 VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`
 		).run(
 			id,
 			input.kind,
@@ -215,7 +208,10 @@ export function createTrack(input: CreateTrackInput): TrackRecord {
 			JSON.stringify(input.payload),
 			JSON.stringify(input.preset),
 			at,
-			input.owner
+			input.owner,
+			input.releaseDay,
+			input.releaseTime,
+			input.timeZone
 		);
 		const insert = db.prepare(
 			`INSERT OR IGNORE INTO track_item (track_id, code, title, first_seen, seen_at, seen_via)
@@ -243,8 +239,6 @@ export interface TrackPatch {
 	label?: string;
 	preset?: TrackPreset;
 	state?: TrackState;
-	/** null clears the override back to the server-wide interval. */
-	interval_ms?: number | null;
 }
 
 export function updateTrack(id: string, caller: string, patch: TrackPatch): TrackRecord | null {
@@ -255,7 +249,6 @@ export function updateTrack(id: string, caller: string, patch: TrackPatch): Trac
 	if (patch.preset !== undefined)
 		(sets.push('preset = ?'), args.push(JSON.stringify(patch.preset)));
 	if (patch.state !== undefined) (sets.push('state = ?'), args.push(patch.state));
-	if (patch.interval_ms !== undefined) (sets.push('interval_ms = ?'), args.push(patch.interval_ms));
 	if (sets.length)
 		getDb()
 			.prepare(`UPDATE track SET ${sets.join(', ')} WHERE id = ?`)
@@ -437,11 +430,41 @@ export function scanTargets(trackId?: string): TrackRecord[] {
  * last check. Never checked counts as due, which is the cold start case.
  */
 export function dueTargets(now = Date.now()): TrackRecord[] {
-	return scanTargets().filter(
-		(t) =>
-			t.last_checked === null ||
-			now - Date.parse(t.last_checked) >= (t.interval_ms ?? config.intervalMs)
+	return scanTargets().filter((t) => {
+		if (t.retry_active)
+			return t.last_checked !== null && now - Date.parse(t.last_checked) >= 5 * 60_000;
+		const lastWindow = previousRelease(t.release_day, t.release_time, t.time_zone, now);
+		return (
+			Date.parse(t.last_checked ?? t.added_at) < lastWindow && Date.parse(t.added_at) < lastWindow
+		);
+	});
+}
+
+export function setTrackRetry(
+	id: string,
+	active: boolean,
+	count: number,
+	pendingCodes?: string[]
+): void {
+	getDb()
+		.prepare('UPDATE track SET retry_active = ?, retry_count = ?, pending_codes = ? WHERE id = ?')
+		.run(Number(active), count, JSON.stringify(pendingCodes ?? []), id);
+}
+
+export function trackPendingCodes(id: string): string[] {
+	const row = getDb().prepare('SELECT pending_codes FROM track WHERE id = ?').get(id) as
+		{ pending_codes: string } | undefined;
+	return row ? (JSON.parse(row.pending_codes) as string[]) : [];
+}
+
+export function markTrackCodesDownloaded(id: string, codes: string[]): void {
+	if (!codes.length) return;
+	const db = getDb();
+	const at = now();
+	const mark = db.prepare(
+		"UPDATE track_item SET seen_at = ?, seen_via = 'download' WHERE track_id = ? AND code = ? AND seen_at IS NULL"
 	);
+	for (const code of codes) mark.run(at, id, code);
 }
 
 export function activeTrackCount(): number {

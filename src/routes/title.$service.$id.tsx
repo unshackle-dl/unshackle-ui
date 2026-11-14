@@ -16,7 +16,6 @@ import { profilesQuery, servicesQuery, trackQuery, tracksQuery } from '$lib/quer
 import { getSettings, useSettings } from '$lib/config';
 import { useMask } from '$lib/stores/incognito';
 import { tracking, trackingErrorMessage } from '$lib/tracking/client';
-import { schedules } from '$lib/schedules/client';
 import { buildListParams, buildPreset } from '$lib/tracking/preset';
 import type { TrackPreset } from '$lib/tracking/types';
 import { hasParts, isEpisodic, summarize, type TrackSummary, wantedCode } from '$lib/tracks';
@@ -121,11 +120,6 @@ function TitlePage() {
 	const [audioSel, setAudioSel] = useState<string[]>([]);
 	const [subSel, setSubSel] = useState<string[]>([]);
 	const [trackOpen, setTrackOpen] = useState(false);
-	const [scheduleOpen, setScheduleOpen] = useState(false);
-	const [scheduleAt, setScheduleAt] = useState('');
-	const [scheduleWeekly, setScheduleWeekly] = useState(false);
-	const [scheduleDays, setScheduleDays] = useState<number[]>([]);
-	const [scheduleTime, setScheduleTime] = useState('22:00:00');
 	const [advanced, setAdvanced] = useState<OptionValues>(() => ({
 		...blankAdvanced(),
 		profile: search.profile ?? '',
@@ -283,17 +277,6 @@ function TitlePage() {
 	const start = useMutation({
 		mutationFn: () => api.download(makeDownloadRequest()),
 		onSuccess: () => navigate({ to: '/downloads' })
-	});
-	const scheduleDownload = useMutation({
-		mutationFn: () =>
-			schedules.create({
-				name: header,
-				runAt: scheduleWeekly ? undefined : new Date(scheduleAt).toISOString(),
-				timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-				request: makeDownloadRequest(),
-				recurrence: scheduleWeekly ? { daysOfWeek: scheduleDays, time: scheduleTime } : null
-			}),
-		onSuccess: () => setScheduleOpen(false)
 	});
 
 	return (
@@ -607,14 +590,6 @@ function TitlePage() {
 											</>
 										)}
 									</Button>
-									<Button
-										variant="secondary"
-										onClick={() => setScheduleOpen((open) => !open)}
-										className="w-full sm:w-auto"
-									>
-										<Icon name="calendar" />
-										Schedule
-									</Button>
 
 									{/* Series only: the tracking routes reject every other kind. */}
 									{episodic &&
@@ -640,88 +615,6 @@ function TitlePage() {
 											</Button>
 										))}
 								</div>
-								{scheduleOpen && (
-									<div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
-										<label className="flex items-center gap-2 text-sm">
-											<input
-												type="checkbox"
-												checked={scheduleWeekly}
-												onChange={(event) => setScheduleWeekly(event.target.checked)}
-											/>
-											Repeat weekly
-										</label>
-										{scheduleWeekly ? (
-											<>
-												<fieldset className="w-full">
-													<legend className="mb-2 text-sm">
-														Weekdays ({Intl.DateTimeFormat().resolvedOptions().timeZone})
-													</legend>
-													<div className="flex flex-wrap gap-3">
-														{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
-															(day, index) => (
-																<label key={day} className="flex items-center gap-1 text-sm">
-																	<input
-																		type="checkbox"
-																		checked={scheduleDays.includes(index)}
-																		onChange={() =>
-																			setScheduleDays((days) =>
-																				days.includes(index)
-																					? days.filter((value) => value !== index)
-																					: [...days, index].sort()
-																				)
-																			}
-																		/>
-																		{day}
-																	</label>
-															)
-														)}
-													</div>
-												</fieldset>
-												<label className="text-sm">
-													Time (hour:minute:second)
-													<input
-														type="time"
-														step="1"
-														value={scheduleTime}
-														onChange={(event) => setScheduleTime(event.target.value)}
-														className="mt-1 block rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
-													/>
-												</label>
-												<p className="w-full text-xs text-neutral-500">
-													If the server was offline, one overdue run is submitted on restart; older missed
-													weeks are skipped. This is when the job is sent to the API.
-												</p>
-											</>
-										) : (
-											<label className="text-sm">
-												Run at ({Intl.DateTimeFormat().resolvedOptions().timeZone})
-												<input
-													type="datetime-local"
-													step="1"
-													value={scheduleAt}
-													onChange={(event) => setScheduleAt(event.target.value)}
-													className="mt-1 block rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 dark:border-neutral-700"
-												/>
-											</label>
-										)}
-										<Button
-											disabled={
-												(!scheduleWeekly && !scheduleAt) ||
-												(scheduleWeekly && scheduleDays.length === 0) ||
-												scheduleDownload.isPending
-											}
-											onClick={() => scheduleDownload.mutate()}
-										>
-											<Icon name="calendar" />
-											Save schedule
-										</Button>
-										{scheduleDownload.error && (
-											<p className="w-full text-sm text-red-600">
-												{String(scheduleDownload.error)}
-											</p>
-										)}
-									</div>
-								)}
 							</div>
 						) : (
 							<div className="mt-4 flex items-center gap-2 py-4 text-sm text-neutral-400 dark:text-neutral-500">
@@ -812,6 +705,9 @@ function TrackDialog({
 	const mask = useMask();
 	const [label, setLabel] = useState(defaultLabel);
 	const [baseline, setBaseline] = useState(false);
+	const [releaseDay, setReleaseDay] = useState(4);
+	const [releaseTime, setReleaseTime] = useState('22:00');
+	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const [relisting, setRelisting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -884,7 +780,10 @@ function TrackDialog({
 				payload,
 				preset,
 				codes: seed(list),
-				baseline
+				baseline,
+				release_day: releaseDay,
+				release_time: releaseTime,
+				time_zone: timeZone
 			});
 		},
 		onSuccess: onTracked,
@@ -910,6 +809,38 @@ function TrackDialog({
 					className="redact mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
 				/>
 			</label>
+
+			<div className="mt-4 grid grid-cols-2 gap-3">
+				<label className="text-xs text-neutral-600 dark:text-neutral-400">
+					Expected release day
+					<select
+						value={releaseDay}
+						onChange={(event) => setReleaseDay(Number(event.target.value))}
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					>
+						{['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(
+							(day, index) => (
+								<option key={day} value={index}>
+									{day}
+								</option>
+							)
+						)}
+					</select>
+				</label>
+				<label className="text-xs text-neutral-600 dark:text-neutral-400">
+					Expected release time
+					<input
+						type="time"
+						value={releaseTime}
+						onChange={(event) => setReleaseTime(event.target.value)}
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					/>
+				</label>
+				<p className="col-span-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+					Weekly in {timeZone}. At release time, tracking checks for new episodes and automatically
+					submits them for download. If none are listed, it retries every 5 minutes up to 5 times.
+				</p>
+			</div>
 
 			<div className="mt-4">
 				<p className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
