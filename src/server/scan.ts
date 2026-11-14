@@ -14,14 +14,18 @@ import {
 	beginScan,
 	dueTargets,
 	endScan,
+	getItems,
+	markTrackCodesDownloaded,
 	openScan,
 	reapStaleScans,
 	scanTargets,
+	setTrackRetry,
 	stampChecked
 } from './db';
 import { detectors } from './detect';
 import { correlateHistory } from './history';
-import { upstreamMessage } from './upstream';
+import { download, upstreamMessage } from './upstream';
+import { autoDownloadCodes, buildAutoDownloadRequest } from './auto-download';
 import type { WebhookError, WebhookTrack } from './webhook';
 import { notifyScan } from './webhook';
 
@@ -133,11 +137,17 @@ async function sweep(
 
 		for (const [i, track] of targets.entries()) {
 			if (i > 0) await sleep(config.staggerMs);
+			let retryStateUpdated = false;
 			try {
 				const detect = detectors[track.kind];
 				if (!detect) throw new Error(`Tracking a ${track.kind} is not implemented yet.`);
 				const result = await detect(track);
 				new_count += result.added.length;
+				const pending = track.pending_codes ?? [];
+				const unseen = getItems(track.id)
+					.filter((item) => item.seen_at === null)
+					.map((item) => item.code);
+				const downloadCodes = autoDownloadCodes(pending, result.added, unseen);
 				if (result.added.length) {
 					// `search` tracks carry a query rather than a title, and have no detector
 					// yet, so this cast only ever runs for the title-shaped kinds.
@@ -151,12 +161,43 @@ async function sweep(
 						new_codes: result.added
 					});
 				}
+				if (track.kind === 'series' && downloadCodes.length) {
+					try {
+						await download(buildAutoDownloadRequest(track, downloadCodes));
+						markTrackCodesDownloaded(track.id, downloadCodes);
+						setTrackRetry(track.id, false, 0, []);
+						retryStateUpdated = true;
+					} catch (error) {
+						const message = upstreamMessage(error);
+						const retryCount = track.retry_active ? track.retry_count + 1 : 1;
+						setTrackRetry(track.id, retryCount < 5, retryCount, downloadCodes);
+						retryStateUpdated = true;
+						throw new Error(`Automatic download failed: ${message}`);
+					}
+				} else if (trigger === 'poll') {
+					if (track.retry_active) {
+						const retryCount = track.retry_count + 1;
+						setTrackRetry(track.id, retryCount < 5, retryCount, pending);
+					} else {
+						setTrackRetry(track.id, true, 0, pending);
+					}
+					retryStateUpdated = true;
+				}
 				stampChecked(track.id, new Date().toISOString(), null);
 			} catch (e) {
 				// A failed check must never abort the sweep. It is recorded on the record
 				// and the next track runs.
 				error_count++;
 				const message = upstreamMessage(e);
+				if (trigger === 'poll' && track.kind === 'series' && !retryStateUpdated) {
+					const retryCount = track.retry_active ? track.retry_count + 1 : 0;
+					setTrackRetry(
+						track.id,
+						retryCount < 5 || !track.retry_active,
+						retryCount,
+						track.pending_codes
+					);
+				}
 				failed.push({ id: track.id, label: track.label, error: message });
 				stampChecked(track.id, new Date().toISOString(), message);
 			}

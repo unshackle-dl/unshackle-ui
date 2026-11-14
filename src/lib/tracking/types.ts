@@ -37,8 +37,13 @@ export interface TrackEnvelope {
 	added_at: string;
 	last_checked: string | null;
 	last_error: string | null;
-	/** Per-title check interval override; null uses the server-wide interval. */
-	interval_ms: number | null;
+	/** Weekly launch window, configured when the series is added. */
+	release_day: number;
+	release_time: string;
+	time_zone: string;
+	retry_active: boolean;
+	retry_count: number;
+	pending_codes: string[];
 }
 
 /**
@@ -108,7 +113,6 @@ export interface SettingField<T = string> {
 export interface TrackingSettings {
 	api_url: SettingField;
 	api_key: { set: boolean; source: SettingSource };
-	interval_ms: SettingField<number>;
 	stagger_ms: SettingField<number>;
 	webhook_url: SettingField;
 	/** Env-only: the overrides above are stored inside this file. */
@@ -122,7 +126,6 @@ export interface TrackingStatus {
 	running_since: string | null;
 	/** When the last scan finished, or null if none ever has. */
 	last_sync: string | null;
-	interval_ms: number;
 	/** Nothing has swept in an interval, so the browser should offer to kick one off. */
 	stale: boolean;
 	tracks: number;
