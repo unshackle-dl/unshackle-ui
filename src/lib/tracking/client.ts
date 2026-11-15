@@ -102,7 +102,17 @@ export const tracking = {
 			(r) => r.track
 		),
 
-	patch: (trackId: string, patch: { label?: string; preset?: TrackPreset; state?: string }) =>
+	patch: (
+		trackId: string,
+		patch: {
+			label?: string;
+			preset?: TrackPreset;
+			state?: string;
+			release_day?: number;
+			release_time?: string;
+			time_zone?: string;
+		}
+	) =>
 		request<{ track: TrackRecord }>(`/api/tracking/${id(trackId)}`, {
 			method: 'PATCH',
 			body: JSON.stringify(patch)

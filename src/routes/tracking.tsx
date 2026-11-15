@@ -508,16 +508,125 @@ function TrackCard({
 			)}
 
 			{expanded && (
-				<PresetEditor
-					// Remounted when the service's option set finally loads, so the form is built
-					// from the real fields rather than from an empty list.
-					key={`${track.id}:${svcFields.map((f) => f.key).join(',')}`}
-					track={track}
-					svcFields={svcFields}
-					onSaved={onSaved}
-				/>
+				<>
+					<div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+						<ScheduleEditor track={track} onSaved={onSaved} />
+					</div>
+					<PresetEditor
+						// Remounted when the service's option set finally loads, so the form is built
+						// from the real fields rather than from an empty list.
+						key={`${track.id}:${svcFields.map((f) => f.key).join(',')}`}
+						track={track}
+						svcFields={svcFields}
+						onSaved={onSaved}
+					/>
+				</>
 			)}
 		</Card>
+	);
+}
+
+function ScheduleEditor({ track, onSaved }: { track: TrackSummary; onSaved: () => void }) {
+	const [releaseDay, setReleaseDay] = useState(track.release_day);
+	const [releaseTime, setReleaseTime] = useState(track.release_time);
+	const [timeZone, setTimeZone] = useState(track.time_zone);
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [saved, setSaved] = useState(false);
+
+	async function save() {
+		setSaving(true);
+		setError(null);
+		setSaved(false);
+		try {
+			await tracking.patch(track.id, {
+				release_day: releaseDay,
+				release_time: releaseTime,
+				time_zone: timeZone.trim()
+			});
+			setSaved(true);
+			onSaved();
+		} catch (e) {
+			setError(trackingErrorMessage(e));
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	return (
+		<section className="space-y-3">
+			<div>
+				<h3 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+					Release schedule
+				</h3>
+				<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+					The weekly check uses this local release window. Delayed releases are retried every five
+					minutes.
+				</p>
+			</div>
+			<div className="grid gap-3 sm:grid-cols-3">
+				<label className="block text-xs text-neutral-600 dark:text-neutral-400">
+					Release day
+					<select
+						value={releaseDay}
+						onChange={(event) => {
+							setReleaseDay(Number(event.target.value));
+							setSaved(false);
+						}}
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					>
+						{['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(
+							(day, index) => (
+								<option key={day} value={index}>
+									{day}
+								</option>
+							)
+						)}
+					</select>
+				</label>
+				<label className="block text-xs text-neutral-600 dark:text-neutral-400">
+					Release time
+					<input
+						type="time"
+						value={releaseTime}
+						onChange={(event) => {
+							setReleaseTime(event.target.value);
+							setSaved(false);
+						}}
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					/>
+				</label>
+				<label className="block text-xs text-neutral-600 dark:text-neutral-400">
+					Time zone (IANA)
+					<input
+						type="text"
+						value={timeZone}
+						onChange={(event) => {
+							setTimeZone(event.target.value);
+							setSaved(false);
+						}}
+						placeholder="America/Recife"
+						autoComplete="off"
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					/>
+				</label>
+			</div>
+			<div className="flex flex-wrap items-center gap-3">
+				<Button onClick={save} disabled={saving}>
+					{saving ? <Icon name="loader" size={16} spin /> : <Icon name="check" size={16} />}
+					Save schedule
+				</Button>
+				{saved && !saving && (
+					<span className="text-xs text-neutral-500 dark:text-neutral-400">Schedule saved.</span>
+				)}
+				{error && (
+					<span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+						<Icon name="alert" size={14} />
+						{error}
+					</span>
+				)}
+			</div>
+		</section>
 	);
 }
 

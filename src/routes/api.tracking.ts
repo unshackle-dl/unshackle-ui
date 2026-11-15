@@ -16,6 +16,7 @@ import { fail, readJson, str } from '../server/http';
 import { callerKey } from '../server/owner';
 import { startPoller } from '../server/poller';
 import { download, upstreamMessage } from '../server/upstream';
+import { isReleaseDay, isReleaseTime, isTimeZone } from '$lib/tracking/schedule';
 
 // Codes arrive from the title page, which already holds the episode list, so creating a
 // track normally costs zero extra list-titles calls. Both shapes are accepted so a plain
@@ -68,15 +69,10 @@ export const Route = createFileRoute('/api/tracking')({
 				const timeZone = str(body.time_zone) ?? 'UTC';
 				if (!service || !titleId)
 					return fail(400, 'payload must carry a non-empty service and title_id.');
-				if (!Number.isInteger(releaseDay) || releaseDay < 0 || releaseDay > 6)
+				if (!isReleaseDay(releaseDay))
 					return fail(400, 'release_day must be a weekday from 0 (Sunday) to 6 (Saturday).');
-				if (!releaseTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(releaseTime))
-					return fail(400, 'release_time must use HH:mm format.');
-				try {
-					new Intl.DateTimeFormat('en', { timeZone }).format();
-				} catch {
-					return fail(400, 'time_zone must be a valid IANA time zone.');
-				}
+				if (!isReleaseTime(releaseTime)) return fail(400, 'release_time must use HH:mm format.');
+				if (!isTimeZone(timeZone)) return fail(400, 'time_zone must be a valid IANA time zone.');
 
 				if (body.preset != null && (typeof body.preset !== 'object' || Array.isArray(body.preset)))
 					return fail(400, 'preset must be a JSON object.');

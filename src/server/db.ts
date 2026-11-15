@@ -239,6 +239,9 @@ export interface TrackPatch {
 	label?: string;
 	preset?: TrackPreset;
 	state?: TrackState;
+	release_day?: number;
+	release_time?: string;
+	time_zone?: string;
 }
 
 export function updateTrack(id: string, caller: string, patch: TrackPatch): TrackRecord | null {
@@ -249,6 +252,10 @@ export function updateTrack(id: string, caller: string, patch: TrackPatch): Trac
 	if (patch.preset !== undefined)
 		(sets.push('preset = ?'), args.push(JSON.stringify(patch.preset)));
 	if (patch.state !== undefined) (sets.push('state = ?'), args.push(patch.state));
+	if (patch.release_day !== undefined) (sets.push('release_day = ?'), args.push(patch.release_day));
+	if (patch.release_time !== undefined)
+		(sets.push('release_time = ?'), args.push(patch.release_time));
+	if (patch.time_zone !== undefined) (sets.push('time_zone = ?'), args.push(patch.time_zone));
 	if (sets.length)
 		getDb()
 			.prepare(`UPDATE track SET ${sets.join(', ')} WHERE id = ?`)
