@@ -8,6 +8,14 @@ import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import ChipSelect from '$lib/components/ChipSelect';
 import Icon from '$lib/components/Icon';
+import EpisodeAccessPicker from '$lib/components/EpisodeAccessPicker';
+import AvailabilityBadges from '$lib/components/AvailabilityBadges';
+import {
+	accessibleSelection,
+	canSelectTitle,
+	confirmedSelection,
+	uniqueEpisodeTitles
+} from '$lib/episode-availability';
 import OptionForm, { type OptionValues } from '$lib/components/OptionForm';
 import Overlay from '$lib/components/Overlay';
 import { ADVANCED_FIELDS, blankAdvanced, buildDownloadRequest } from '$lib/download';
@@ -54,7 +62,7 @@ export const Route = createFileRoute('/title/$service/$id')({
 	loaderDeps: ({ search }) => ({ ...search, remote: getSettings().remote }),
 	// Episode selection and chip picks belong to one title, and the component is
 	// otherwise reused when only the params change, carrying them to the next one.
-	remountDeps: ({ params }) => params,
+	remountDeps: ({ params, loaderDeps }) => ({ params, loaderDeps }),
 	// Loaded up front so the Browse list can show per-row "opening…" feedback while
 	// this navigation is pending. Errors render inline, they are not thrown.
 	loader: async ({ params, deps, abortController }) => {
@@ -100,14 +108,18 @@ function TitlePage() {
 	const search = Route.useSearch();
 	// Runner-up services from the Browse match, passed along as ?alt=TAG,TAG.
 	const alts = (search.alt ?? '').split(',').filter(Boolean);
-	const { titles, error } = Route.useLoaderData();
+	const { titles: listedTitles, error } = Route.useLoaderData();
+	// Tie refresh results to the listing that requested them; old async responses cannot
+	// override a new loader result after profile, options or remote changes.
+	const [refreshed, setRefreshed] = useState<{ source: Title[]; titles: Title[] } | null>(null);
+	const titles = refreshed && refreshed.source === listedTitles ? refreshed.titles : listedTitles;
 
 	const episodic = isEpisodic(titles);
 	const split = hasParts(titles);
-	const first = titles[0];
+	const first = titles.find(canSelectTitle) ?? titles[0];
 	const header = first?.series_title || first?.name || 'Title';
 
-	// Episodes picked for download (empty = all episodes). Movies stay empty.
+	// Explicit episode selection: clearing the picker must never download a full series.
 	const [epSel, setEpSel] = useState<string[]>([]);
 	const [loadedSel, setLoadedSel] = useState<string[]>([]);
 	const stale = JSON.stringify(epSel) !== JSON.stringify(loadedSel);
@@ -174,20 +186,27 @@ function TitlePage() {
 		[trackDetail.data]
 	);
 
-	const episodeOptions = useMemo(
-		() =>
-			titles
-				.map((t) => wantedCode(t))
-				.filter((c): c is string => c != null)
-				// New line at each season boundary (codes start SxxEyy; slice(0,3) = season).
-				.map((c, i, all) => ({
-					value: c,
-					label: c,
-					breakBefore: i > 0 && c.slice(0, 3) !== all[i - 1].slice(0, 3),
-					highlight: unseenCodes.has(c)
-				})),
-		[titles, unseenCodes]
-	);
+	const episodeTitles = uniqueEpisodeTitles(titles);
+	const episodeOptions = episodeTitles.map((t) => ({ value: wantedCode(t)! }));
+	const selected = accessibleSelection(epSel, titles);
+	const reloadTitles = async () => {
+		const current = await api.listTitles({
+			...coerce(svcFields, svcValues),
+			service,
+			title_id: titleId,
+			profile: String(advanced.profile).trim() || undefined,
+			proxy: String(advanced.proxy).trim() || undefined,
+			no_proxy: advanced.no_proxy === true || undefined
+		});
+		setRefreshed({ source: listedTitles, titles: current });
+		return current;
+	};
+	const refreshStatus = useMutation({
+		mutationFn: async () => {
+			const current = await reloadTitles();
+			setEpSel((selection) => accessibleSelection(selection, current));
+		}
+	});
 
 	// Manual: load tracks for the selected episodes (or the first episode / movie
 	// when nothing is selected). Episode selection alone never triggers this.
@@ -195,11 +214,13 @@ function TitlePage() {
 		mutationFn: (sel: string[]) => {
 			const targets: Title[] =
 				episodic && sel.length
-					? titles.filter((t) => {
+					? uniqueEpisodeTitles(titles).filter((t) => {
 							const c = wantedCode(t);
-							return c != null && sel.includes(c);
+							return c != null && sel.includes(c) && canSelectTitle(t);
 						})
-					: [first];
+					: first && canSelectTitle(first)
+						? [first]
+						: [];
 			return Promise.all(
 				targets.map(async (t): Promise<EpisodeTracks> => ({
 					code: wantedCode(t),
@@ -229,13 +250,16 @@ function TitlePage() {
 	});
 	const trackResults = tracks.data ?? [];
 
-	const loadSelection = () => tracks.mutate(epSel);
+	const loadSelection = () => tracks.mutate(selected);
 
 	// Initial load, once the title data is in. Deliberately not re-run on epSel changes.
 	useEffect(() => {
-		if (first) tracks.mutate([]);
+		setRefreshed(null);
+		setEpSel((selection) => accessibleSelection(selection, listedTitles));
+		tracks.reset();
+		if (listedTitles.some(canSelectTitle)) tracks.mutate([]);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [service, titleId]);
+	}, [service, titleId, listedTitles]);
 
 	const episodeSummaries = trackResults.map((r) => ({
 		code: r.code,
@@ -260,13 +284,23 @@ function TitlePage() {
 	const originalLangs = combined?.originalAudioLangs ?? [];
 
 	const start = useMutation({
-		mutationFn: () =>
-			api.download(
+		mutationFn: async () => {
+			const current = titles.some((t) => t.availability !== undefined)
+				? await reloadTitles()
+				: titles;
+			const wanted = accessibleSelection(epSel, current);
+			if (episodic) {
+				setEpSel(wanted);
+				confirmedSelection(epSel, current);
+			} else if (!current.some(canSelectTitle)) {
+				throw new Error('This account does not have access to this title.');
+			}
+			return api.download(
 				buildDownloadRequest(
 					{ service, title_id: titleId },
 					{
-						// An empty selection means all episodes; send them so progress can list them.
-						wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
+						// Pass only explicit, currently accessible episode codes.
+						wanted,
 						quality: qualitySel,
 						vcodec: codecSel,
 						range: rangeSel,
@@ -277,7 +311,8 @@ function TitlePage() {
 					svcFields,
 					svcValues
 				)
-			),
+			);
+		},
 		onSuccess: () => navigate({ to: '/downloads' })
 	});
 
@@ -292,6 +327,7 @@ function TitlePage() {
 
 			<div className="mt-3 flex flex-wrap items-center gap-3">
 				<h1 className="text-2xl font-semibold tracking-tight">{mask.title(header)}</h1>
+				{!episodic && first && <AvailabilityBadges title={first} />}
 				{first?.type && <Badge tone="accent">{episodic ? 'series' : first.type}</Badge>}
 				{first?.year && (
 					<span className="text-sm text-neutral-500 dark:text-neutral-400">{first.year}</span>
@@ -337,78 +373,36 @@ function TitlePage() {
 					>
 						{episodic && episodeOptions.length > 0 && (
 							<Card className="p-5">
-								<div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-									<p className="text-sm font-semibold whitespace-nowrap text-neutral-900 dark:text-neutral-100">
-										Episodes{' '}
-										{epSel.length === 0 ? (
-											<span className="font-normal text-neutral-400">
-												· all {episodeOptions.length} episodes
-											</span>
-										) : (
-											<span className="font-normal text-neutral-400">
-												· {epSel.length} selected
-											</span>
-										)}
-									</p>
-									<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs [&>button]:whitespace-nowrap">
-										<button
-											type="button"
-											onClick={loadSelection}
-											disabled={tracks.isPending}
-											title="Refresh selection"
-											className={`inline-flex items-center gap-1 font-medium disabled:opacity-50 ${
-												stale
-													? 'text-accent-600 dark:text-accent-400'
-													: 'text-neutral-500 dark:text-neutral-400'
-											} hover:underline`}
-										>
-											<Icon name="loader" size={13} spin={tracks.isPending} />
-											Refresh
-										</button>
-										{unseenCodes.size > 0 && (
-											<button
-												type="button"
-												onClick={() =>
-													setEpSel(episodeOptions.filter((o) => o.highlight).map((o) => o.value))
-												}
-												title="Select the new episodes"
-												className="font-medium text-amber-700 hover:underline dark:text-amber-300"
-											>
-												New ({unseenCodes.size})
-											</button>
-										)}
-										<button
-											type="button"
-											onClick={() => setEpSel(episodeOptions.map((o) => o.value))}
-											title="Select every episode"
-											className="font-medium text-accent-600 hover:underline dark:text-accent-400"
-										>
-											All
-										</button>
-										{epSel.length > 0 && (
-											<button
-												type="button"
-												onClick={() => setEpSel([])}
-												className="font-medium text-neutral-500 hover:underline dark:text-neutral-400"
-											>
-												Clear
-											</button>
-										)}
-									</div>
+								<EpisodeAccessPicker
+									titles={titles}
+									selected={selected}
+									onChange={setEpSel}
+									unseen={unseenCodes}
+								/>
+								<div className="mt-3 flex flex-wrap gap-3 text-xs">
+									<button
+										type="button"
+										onClick={() => refreshStatus.mutate()}
+										disabled={refreshStatus.isPending || start.isPending}
+										className="text-accent-600 disabled:opacity-40"
+									>
+										{refreshStatus.isPending ? 'Refreshing availability…' : 'Refresh availability'}
+									</button>
+									<button
+										type="button"
+										onClick={loadSelection}
+										disabled={tracks.isPending || !selected.length}
+										className="text-accent-600 disabled:opacity-40"
+									>
+										Refresh selected tracks
+									</button>
 								</div>
-								<div className="mt-3">
-									<ChipSelect
-										label=""
-										selected={epSel}
-										onChange={setEpSel}
-										options={episodeOptions}
-									/>
-								</div>
-								{unseenCodes.size > 0 && (
-									<p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-										✦ {unseenCodes.size} new since you last marked this title seen.
+								{refreshStatus.error && (
+									<p role="alert" className="mt-2 text-sm text-red-600">
+										{mask.text(errorMessage(refreshStatus.error))}
 									</p>
 								)}
+
 								{split && (
 									<p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
 										S01E01.2 is part 2 of one episode. Pick any part on its own, or all of them for
@@ -434,7 +428,11 @@ function TitlePage() {
 									</span>
 								)}
 							</div>
-							{tracks.isPending ? (
+							{first && !canSelectTitle(first) ? (
+								<p role="status" className="mt-3 text-sm text-red-600">
+									This account does not have access to this title.
+								</p>
+							) : tracks.isPending ? (
 								<div className="flex items-center gap-2 py-8 text-sm text-neutral-500 dark:text-neutral-400">
 									<Icon name="loader" spin /> Loading tracks…
 								</div>
@@ -577,7 +575,13 @@ function TitlePage() {
 								<div className="flex flex-wrap items-center gap-2">
 									<Button
 										onClick={() => start.mutate()}
-										disabled={start.isPending || tracks.isPending || !!tracks.error}
+										disabled={
+											start.isPending ||
+											refreshStatus.isPending ||
+											tracks.isPending ||
+											!!tracks.error ||
+											(episodic ? !selected.length : !first || !canSelectTitle(first))
+										}
 										className="w-full sm:w-auto"
 									>
 										{start.isPending ? (
@@ -624,6 +628,8 @@ function TitlePage() {
 									<>
 										<Icon name="loader" spin /> Loading tracks…
 									</>
+								) : first && !canSelectTitle(first) ? (
+									'This account does not have access to this title.'
 								) : (
 									'Select an episode to load tracks.'
 								)}
