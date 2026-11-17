@@ -8,6 +8,8 @@ import Button from '$lib/components/Button';
 import Card from '$lib/components/Card';
 import ChipSelect from '$lib/components/ChipSelect';
 import Icon from '$lib/components/Icon';
+import EpisodePicker from '$lib/components/EpisodePicker';
+import { episodeGroups } from '$lib/episode-picker';
 import OptionForm, { type OptionValues } from '$lib/components/OptionForm';
 import Overlay from '$lib/components/Overlay';
 import { ADVANCED_FIELDS, blankAdvanced, buildDownloadRequest } from '$lib/download';
@@ -54,7 +56,7 @@ export const Route = createFileRoute('/title/$service/$id')({
 	loaderDeps: ({ search }) => ({ ...search, remote: getSettings().remote }),
 	// Episode selection and chip picks belong to one title, and the component is
 	// otherwise reused when only the params change, carrying them to the next one.
-	remountDeps: ({ params }) => params,
+	remountDeps: ({ params, loaderDeps }) => ({ params, loaderDeps }),
 	// Loaded up front so the Browse list can show per-row "opening…" feedback while
 	// this navigation is pending. Errors render inline, they are not thrown.
 	loader: async ({ params, deps, abortController }) => {
@@ -107,7 +109,7 @@ function TitlePage() {
 	const first = titles[0];
 	const header = first?.series_title || first?.name || 'Title';
 
-	// Episodes picked for download (empty = all episodes). Movies stay empty.
+	// Explicit episode selection: clearing the picker never starts a full-series download.
 	const [epSel, setEpSel] = useState<string[]>([]);
 	const [loadedSel, setLoadedSel] = useState<string[]>([]);
 	const stale = JSON.stringify(epSel) !== JSON.stringify(loadedSel);
@@ -174,19 +176,11 @@ function TitlePage() {
 		[trackDetail.data]
 	);
 
-	const episodeOptions = useMemo(
-		() =>
-			titles
-				.map((t) => wantedCode(t))
-				.filter((c): c is string => c != null)
-				// New line at each season boundary (codes start SxxEyy; slice(0,3) = season).
-				.map((c, i, all) => ({
-					value: c,
-					label: c,
-					breakBefore: i > 0 && c.slice(0, 3) !== all[i - 1].slice(0, 3),
-					highlight: unseenCodes.has(c)
-				})),
-		[titles, unseenCodes]
+	const episodeOptions = episodeGroups(titles).flatMap(({ episodes }) =>
+		episodes.map((title) => ({ value: wantedCode(title)! }))
+	);
+	const selected = [...new Set(epSel)].filter((code) =>
+		episodeOptions.some((option) => option.value === code)
 	);
 
 	// Manual: load tracks for the selected episodes (or the first episode / movie
@@ -195,10 +189,12 @@ function TitlePage() {
 		mutationFn: (sel: string[]) => {
 			const targets: Title[] =
 				episodic && sel.length
-					? titles.filter((t) => {
-							const c = wantedCode(t);
-							return c != null && sel.includes(c);
-						})
+					? episodeGroups(titles)
+							.flatMap(({ episodes }) => episodes)
+							.filter((t) => {
+								const c = wantedCode(t);
+								return c != null && sel.includes(c);
+							})
 					: [first];
 			return Promise.all(
 				targets.map(async (t): Promise<EpisodeTracks> => ({
@@ -260,13 +256,14 @@ function TitlePage() {
 	const originalLangs = combined?.originalAudioLangs ?? [];
 
 	const start = useMutation({
-		mutationFn: () =>
-			api.download(
+		mutationFn: () => {
+			if (episodic && !selected.length) throw new Error('Select at least one episode.');
+			return api.download(
 				buildDownloadRequest(
 					{ service, title_id: titleId },
 					{
-						// An empty selection means all episodes; send them so progress can list them.
-						wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
+						// Only explicitly selected episode codes reach the backend.
+						wanted: selected,
 						quality: qualitySel,
 						vcodec: codecSel,
 						range: rangeSel,
@@ -277,7 +274,8 @@ function TitlePage() {
 					svcFields,
 					svcValues
 				)
-			),
+			);
+		},
 		onSuccess: () => navigate({ to: '/downloads' })
 	});
 
@@ -337,78 +335,21 @@ function TitlePage() {
 					>
 						{episodic && episodeOptions.length > 0 && (
 							<Card className="p-5">
-								<div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-									<p className="text-sm font-semibold whitespace-nowrap text-neutral-900 dark:text-neutral-100">
-										Episodes{' '}
-										{epSel.length === 0 ? (
-											<span className="font-normal text-neutral-400">
-												· all {episodeOptions.length} episodes
-											</span>
-										) : (
-											<span className="font-normal text-neutral-400">
-												· {epSel.length} selected
-											</span>
-										)}
-									</p>
-									<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs [&>button]:whitespace-nowrap">
-										<button
-											type="button"
-											onClick={loadSelection}
-											disabled={tracks.isPending}
-											title="Refresh selection"
-											className={`inline-flex items-center gap-1 font-medium disabled:opacity-50 ${
-												stale
-													? 'text-accent-600 dark:text-accent-400'
-													: 'text-neutral-500 dark:text-neutral-400'
-											} hover:underline`}
-										>
-											<Icon name="loader" size={13} spin={tracks.isPending} />
-											Refresh
-										</button>
-										{unseenCodes.size > 0 && (
-											<button
-												type="button"
-												onClick={() =>
-													setEpSel(episodeOptions.filter((o) => o.highlight).map((o) => o.value))
-												}
-												title="Select the new episodes"
-												className="font-medium text-amber-700 hover:underline dark:text-amber-300"
-											>
-												New ({unseenCodes.size})
-											</button>
-										)}
-										<button
-											type="button"
-											onClick={() => setEpSel(episodeOptions.map((o) => o.value))}
-											title="Select every episode"
-											className="font-medium text-accent-600 hover:underline dark:text-accent-400"
-										>
-											All
-										</button>
-										{epSel.length > 0 && (
-											<button
-												type="button"
-												onClick={() => setEpSel([])}
-												className="font-medium text-neutral-500 hover:underline dark:text-neutral-400"
-											>
-												Clear
-											</button>
-										)}
-									</div>
-								</div>
-								<div className="mt-3">
-									<ChipSelect
-										label=""
-										selected={epSel}
-										onChange={setEpSel}
-										options={episodeOptions}
-									/>
-								</div>
-								{unseenCodes.size > 0 && (
-									<p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-										✦ {unseenCodes.size} new since you last marked this title seen.
-									</p>
-								)}
+								<EpisodePicker
+									titles={titles}
+									selected={selected}
+									onChange={setEpSel}
+									unseen={unseenCodes}
+								/>
+								<button
+									type="button"
+									onClick={loadSelection}
+									disabled={tracks.isPending || !selected.length}
+									className="mt-3 text-xs text-accent-600 disabled:opacity-40"
+								>
+									Refresh selected tracks
+								</button>
+
 								{split && (
 									<p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
 										S01E01.2 is part 2 of one episode. Pick any part on its own, or all of them for
@@ -577,7 +518,12 @@ function TitlePage() {
 								<div className="flex flex-wrap items-center gap-2">
 									<Button
 										onClick={() => start.mutate()}
-										disabled={start.isPending || tracks.isPending || !!tracks.error}
+										disabled={
+											start.isPending ||
+											tracks.isPending ||
+											!!tracks.error ||
+											(episodic && !selected.length)
+										}
 										className="w-full sm:w-auto"
 									>
 										{start.isPending ? (
