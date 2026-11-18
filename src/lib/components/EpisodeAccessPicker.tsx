@@ -42,7 +42,8 @@ export default function EpisodeAccessPicker({
 				{denied > 0 && <span className="text-red-600">{denied} without access</span>}
 			</div>
 			<p className="mt-2 text-xs text-neutral-500">
-				Select episodes to download. Only confirmed lack of account access blocks selection.
+				Leave the selection empty to download all accessible episodes. Only confirmed lack of
+				account access blocks selection.
 			</p>
 			<div className="mt-3 flex max-h-64 flex-wrap gap-2 overflow-y-auto p-1">
 				{episodes.map((title) => {

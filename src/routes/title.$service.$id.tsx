@@ -14,6 +14,7 @@ import {
 	accessibleSelection,
 	canSelectTitle,
 	confirmedSelection,
+	selectableEpisodeCodes,
 	uniqueEpisodeTitles
 } from '$lib/episode-availability';
 import OptionForm, { type OptionValues } from '$lib/components/OptionForm';
@@ -109,17 +110,16 @@ function TitlePage() {
 	// Runner-up services from the Browse match, passed along as ?alt=TAG,TAG.
 	const alts = (search.alt ?? '').split(',').filter(Boolean);
 	const { titles: listedTitles, error } = Route.useLoaderData();
-	// Tie refresh results to the listing that requested them; old async responses cannot
-	// override a new loader result after profile, options or remote changes.
-	const [refreshed, setRefreshed] = useState<{ source: Title[]; titles: Title[] } | null>(null);
-	const titles = refreshed && refreshed.source === listedTitles ? refreshed.titles : listedTitles;
+	// Loader dependency changes remount this component, including its refresh state.
+	const [refreshed, setRefreshed] = useState<Title[] | null>(null);
+	const titles = refreshed ?? listedTitles;
 
 	const episodic = isEpisodic(titles);
 	const split = hasParts(titles);
 	const first = titles.find(canSelectTitle) ?? titles[0];
 	const header = first?.series_title || first?.name || 'Title';
 
-	// Explicit episode selection: clearing the picker must never download a full series.
+	// Empty selection preserves the default: all currently accessible episodes.
 	const [epSel, setEpSel] = useState<string[]>([]);
 	const [loadedSel, setLoadedSel] = useState<string[]>([]);
 	const stale = JSON.stringify(epSel) !== JSON.stringify(loadedSel);
@@ -198,7 +198,7 @@ function TitlePage() {
 			proxy: String(advanced.proxy).trim() || undefined,
 			no_proxy: advanced.no_proxy === true || undefined
 		});
-		setRefreshed({ source: listedTitles, titles: current });
+		setRefreshed(current);
 		return current;
 	};
 	const refreshStatus = useMutation({
@@ -254,12 +254,9 @@ function TitlePage() {
 
 	// Initial load, once the title data is in. Deliberately not re-run on epSel changes.
 	useEffect(() => {
-		setRefreshed(null);
-		setEpSel((selection) => accessibleSelection(selection, listedTitles));
-		tracks.reset();
 		if (listedTitles.some(canSelectTitle)) tracks.mutate([]);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [service, titleId, listedTitles]);
+	}, [service, titleId]);
 
 	const episodeSummaries = trackResults.map((r) => ({
 		code: r.code,
@@ -285,13 +282,15 @@ function TitlePage() {
 
 	const start = useMutation({
 		mutationFn: async () => {
+			const requested = epSel.length ? epSel : selectableEpisodeCodes(titles);
 			const current = titles.some((t) => t.availability !== undefined)
 				? await reloadTitles()
 				: titles;
-			const wanted = accessibleSelection(epSel, current);
+			const wanted = accessibleSelection(requested, current);
 			if (episodic) {
 				setEpSel(wanted);
-				confirmedSelection(epSel, current);
+				if (!requested.length) throw new Error('No accessible episodes are available.');
+				confirmedSelection(requested, current);
 			} else if (!current.some(canSelectTitle)) {
 				throw new Error('This account does not have access to this title.');
 			}
@@ -299,7 +298,7 @@ function TitlePage() {
 				buildDownloadRequest(
 					{ service, title_id: titleId },
 					{
-						// Pass only explicit, currently accessible episode codes.
+						// Expand the empty-selection default into accessible codes so denied titles never enter the batch.
 						wanted,
 						quality: qualitySel,
 						vcodec: codecSel,
@@ -580,7 +579,9 @@ function TitlePage() {
 											refreshStatus.isPending ||
 											tracks.isPending ||
 											!!tracks.error ||
-											(episodic ? !selected.length : !first || !canSelectTitle(first))
+											(episodic
+												? !(epSel.length ? selected.length : selectableEpisodeCodes(titles).length)
+												: !first || !canSelectTitle(first))
 										}
 										className="w-full sm:w-auto"
 									>

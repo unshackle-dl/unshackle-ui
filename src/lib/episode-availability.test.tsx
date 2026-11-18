@@ -47,7 +47,7 @@ test('partial denial requires user review instead of silently submitting a subse
 		() => confirmedSelection(['S01E01', 'S01E02'], [episode(1), episode(2, { access: 'denied' })]),
 		/Review the updated selection/
 	);
-	assert.throws(() => confirmedSelection([], [episode(1)]), /Select at least one/);
+	assert.deepEqual(confirmedSelection([], [episode(1)]), ['S01E01']);
 	assert.deepEqual(confirmedSelection(['S01E01', 'S01E02'], [episode(1), episode(2)]), [
 		'S01E01',
 		'S01E02'
@@ -86,4 +86,19 @@ test('movie denial displays a badge, while missing metadata displays none', () =
 		/Paid.*No account access/
 	);
 	assert.equal(renderToStaticMarkup(<AvailabilityBadges title={episode(1)} />), '');
+});
+
+test('empty selection resolves all accessible episodes and never falls back to unrestricted download', () => {
+	assert.deepEqual(
+		confirmedSelection(
+			[],
+			[episode(1), episode(2, { access: 'denied' }), episode(3, { access: 'unknown' }), episode(1)]
+		),
+		['S01E01', 'S01E03']
+	);
+	assert.throws(
+		() => confirmedSelection([], [episode(1, { access: 'denied' })]),
+		/accessible episode/
+	);
+	assert.throws(() => confirmedSelection([], []), /accessible episode/);
 });

@@ -30,9 +30,11 @@ export function accessibleSelection(selected: string[], titles: Title[]): string
 
 /** Availability changes require review; never silently submit only part of a batch. */
 export function confirmedSelection(selected: string[], titles: Title[]): string[] {
-	const current = accessibleSelection(selected, titles);
+	const current = selected.length
+		? accessibleSelection(selected, titles)
+		: selectableEpisodeCodes(titles);
 	if (!current.length) throw new Error('Select at least one accessible episode.');
-	if (current.length !== new Set(selected).size)
+	if (selected.length && current.length !== new Set(selected).size)
 		throw new Error('Episode availability changed. Review the updated selection and start again.');
 	return current;
 }
