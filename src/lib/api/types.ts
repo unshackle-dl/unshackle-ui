@@ -51,7 +51,15 @@ export interface SearchResponse {
 	count: number;
 }
 
+/** Account-scoped snapshot from services supporting the optional API metadata. */
+export interface TitleAvailability {
+	paid?: boolean;
+	access?: 'granted' | 'denied' | 'unknown';
+}
+
 export interface Title {
+	availability?: TitleAvailability;
+
 	type: string; // "episode" | "movie" | ...
 	name: string;
 	id: string;

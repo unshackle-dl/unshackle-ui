@@ -91,3 +91,24 @@ test('an empty listing stamps every stored code gone', () => {
 	const d = diffCodes([item('S01E01'), item('S01E02')], []);
 	assert.deepEqual(d.vanished, ['S01E01', 'S01E02']);
 });
+
+test('denied new codes are withheld, then become new when access is granted', () => {
+	const codes = ['S01E01', 'S01E02'];
+	const denied = diffCodes([seen('S01E01')], codes, ['S01E01']);
+	assert.deepEqual(denied, { listed: 2, added: [], returned: [], vanished: [] });
+	// No row was added for the denied episode, so gaining access can announce it.
+	const granted = diffCodes([seen('S01E01')], codes, codes);
+	assert.deepEqual(granted.added, ['S01E02']);
+});
+
+test('access loss and restoration do not mark stored codes gone or announce them again', () => {
+	const stored = [seen('S01E01'), item('S01E02')];
+	const codes = stored.map((s) => s.code);
+	assert.deepEqual(diffCodes(stored, codes, []), {
+		listed: 2,
+		added: [],
+		returned: [],
+		vanished: []
+	});
+	assert.deepEqual(diffCodes(stored, codes, codes).added, []);
+});
