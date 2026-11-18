@@ -77,3 +77,13 @@ test('optional selectable rows are excluded from counts and New', () => {
 	assert.match(html, /disabled=""/);
 	assert.doesNotMatch(html, /New \(1\)/);
 });
+
+test('empty selection explains the all-episodes default and singular season counts', () => {
+	const html = renderToStaticMarkup(
+		<EpisodePicker titles={[episode(1, 1)]} selected={[]} onChange={() => {}} unseen={new Set()} />
+	);
+	assert.match(html, /leave the selection empty to download all episodes/);
+	assert.match(html, /1 season · 0 selected/);
+	assert.match(html, /· 1 episode</);
+	assert.doesNotMatch(html, /1 episodes|1 seasons/);
+});

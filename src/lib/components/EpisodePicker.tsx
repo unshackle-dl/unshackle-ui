@@ -35,7 +35,8 @@ export default function EpisodePicker({
 		<section aria-label="Episodes by season" className="space-y-3">
 			<div className="flex flex-wrap items-center gap-3 text-xs">
 				<h2 className="text-sm font-semibold">
-					Episodes · {groups.length} seasons · {picked.size} selected
+					Episodes · {groups.length} {groups.length === 1 ? 'season' : 'seasons'} · {picked.size}{' '}
+					selected
 				</h2>
 				<button type="button" onClick={() => onChange(allowed)} className="text-accent-600">
 					All
@@ -50,7 +51,7 @@ export default function EpisodePicker({
 				</button>
 			</div>
 			<p className="text-xs text-neutral-500">
-				Select episodes to download, or use All to select the entire series.
+				Select specific episodes, or leave the selection empty to download all episodes.
 			</p>
 			<input
 				aria-label="Search episodes"
@@ -97,7 +98,7 @@ export default function EpisodePicker({
 									<span className="text-sm font-semibold">
 										{season === 0 ? 'Specials' : `Season ${season}`}{' '}
 										<span className="text-xs font-normal text-neutral-500">
-											· {episodes.length} episodes
+											· {episodes.length} {episodes.length === 1 ? 'episode' : 'episodes'}
 										</span>
 									</span>
 									<span aria-hidden="true">{expanded ? '−' : '+'}</span>

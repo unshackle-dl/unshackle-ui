@@ -257,12 +257,11 @@ function TitlePage() {
 
 	const start = useMutation({
 		mutationFn: () => {
-			if (episodic && !selected.length) throw new Error('Select at least one episode.');
 			return api.download(
 				buildDownloadRequest(
 					{ service, title_id: titleId },
 					{
-						// Only explicitly selected episode codes reach the backend.
+						// An empty wanted selector is omitted, preserving the backend default: all episodes.
 						wanted: selected,
 						quality: qualitySel,
 						vcodec: codecSel,
@@ -518,12 +517,7 @@ function TitlePage() {
 								<div className="flex flex-wrap items-center gap-2">
 									<Button
 										onClick={() => start.mutate()}
-										disabled={
-											start.isPending ||
-											tracks.isPending ||
-											!!tracks.error ||
-											(episodic && !selected.length)
-										}
+										disabled={start.isPending || tracks.isPending || !!tracks.error}
 										className="w-full sm:w-auto"
 									>
 										{start.isPending ? (
