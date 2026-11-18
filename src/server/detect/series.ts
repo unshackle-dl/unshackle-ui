@@ -6,6 +6,7 @@
 // $lib/tracks, the same function the title page selects with, so that the poller and the
 // browser cannot disagree about what "S01E02" means.
 import type { Title } from '$lib/api/types';
+import { selectableEpisodeCodes } from '$lib/episode-availability';
 import { wantedCode } from '$lib/tracks';
 import { buildListParams } from '$lib/tracking/preset';
 import type { TitlePayload, TrackRecord } from '$lib/tracking/types';
@@ -34,16 +35,24 @@ export interface DetectResult {
  * 3. A gone code that is listed again is returned: clear `gone_at`, leave `seen_at`
  *    alone. If it had already been watched it stays seen; if it was still unseen it stays
  *    unseen. Either way it never becomes "new" a second time.
+ * 4. Only notifiable codes may be added. A denied code remains in the catalogue for
+ *    presence checks, but is not stored as new until access is no longer denied.
  */
-export function diffCodes(stored: readonly ItemState[], listed: readonly string[]): DetectResult {
+export function diffCodes(
+	stored: readonly ItemState[],
+	listed: readonly string[],
+	notifiable: readonly string[] = listed
+): DetectResult {
 	const seenNow = new Set(listed);
+	const mayNotify = new Set(notifiable);
 	const known = new Map(stored.map((s) => [s.code, s]));
 	const added: string[] = [];
 	const returned: string[] = [];
 	for (const code of seenNow) {
 		const prev = known.get(code);
-		if (!prev) added.push(code);
-		else if (prev.gone_at !== null) returned.push(code);
+		if (!prev) {
+			if (mayNotify.has(code)) added.push(code);
+		} else if (prev.gone_at !== null) returned.push(code);
 	}
 	const vanished = stored
 		.filter((s) => s.gone_at === null && !seenNow.has(s.code))
@@ -80,7 +89,8 @@ export async function detectSeries(track: TrackRecord): Promise<DetectResult> {
 			`Listing returned no episodes for ${payload.service} ${payload.title_id}; leaving ${stored.length} stored code(s) untouched.`
 		);
 
-	const diff = diffCodes(stored, [...codes.keys()]);
+	// Presence and notification eligibility are separate: denied is not gone.
+	const diff = diffCodes(stored, [...codes.keys()], selectableEpisodeCodes(titles));
 	if (diff.added.length || diff.returned.length || diff.vanished.length)
 		applyDetection(
 			track.id,
