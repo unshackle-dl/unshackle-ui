@@ -126,7 +126,6 @@ function TitlePage() {
 		proxy: search.proxy ?? '',
 		no_proxy: search.no_proxy ?? false
 	}));
-
 	// Named profiles for this service; undefined keeps the free-text advanced field.
 	const profiles = useQuery(profilesQuery);
 	const profileOptions = profiles.isError ? null : (profiles.data?.[service] ?? null);
@@ -259,25 +258,24 @@ function TitlePage() {
 	// means no marker.
 	const originalLangs = combined?.originalAudioLangs ?? [];
 
+	const makeDownloadRequest = () =>
+		buildDownloadRequest(
+			{ service, title_id: titleId },
+			{
+				// An empty selection means all episodes; send them so progress can list them.
+				wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
+				quality: qualitySel,
+				vcodec: codecSel,
+				range: rangeSel,
+				a_lang: audioSel,
+				s_lang: subSel
+			},
+			advanced,
+			svcFields,
+			svcValues
+		);
 	const start = useMutation({
-		mutationFn: () =>
-			api.download(
-				buildDownloadRequest(
-					{ service, title_id: titleId },
-					{
-						// An empty selection means all episodes; send them so progress can list them.
-						wanted: epSel.length ? epSel : episodeOptions.map((o) => o.value),
-						quality: qualitySel,
-						vcodec: codecSel,
-						range: rangeSel,
-						a_lang: audioSel,
-						s_lang: subSel
-					},
-					advanced,
-					svcFields,
-					svcValues
-				)
-			),
+		mutationFn: () => api.download(makeDownloadRequest()),
 		onSuccess: () => navigate({ to: '/downloads' })
 	});
 
@@ -707,6 +705,9 @@ function TrackDialog({
 	const mask = useMask();
 	const [label, setLabel] = useState(defaultLabel);
 	const [baseline, setBaseline] = useState(false);
+	const [releaseDay, setReleaseDay] = useState(4);
+	const [releaseTime, setReleaseTime] = useState('22:00');
+	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const [relisting, setRelisting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -779,7 +780,10 @@ function TrackDialog({
 				payload,
 				preset,
 				codes: seed(list),
-				baseline
+				baseline,
+				release_day: releaseDay,
+				release_time: releaseTime,
+				time_zone: timeZone
 			});
 		},
 		onSuccess: onTracked,
@@ -805,6 +809,38 @@ function TrackDialog({
 					className="redact mt-1 w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
 				/>
 			</label>
+
+			<div className="mt-4 grid grid-cols-2 gap-3">
+				<label className="text-xs text-neutral-600 dark:text-neutral-400">
+					Expected release day
+					<select
+						value={releaseDay}
+						onChange={(event) => setReleaseDay(Number(event.target.value))}
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					>
+						{['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(
+							(day, index) => (
+								<option key={day} value={index}>
+									{day}
+								</option>
+							)
+						)}
+					</select>
+				</label>
+				<label className="text-xs text-neutral-600 dark:text-neutral-400">
+					Expected release time
+					<input
+						type="time"
+						value={releaseTime}
+						onChange={(event) => setReleaseTime(event.target.value)}
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					/>
+				</label>
+				<p className="col-span-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+					Weekly in {timeZone}. At release time, tracking checks for new episodes and automatically
+					submits them for download. If none are listed, it retries every 5 minutes up to 5 times.
+				</p>
+			</div>
 
 			<div className="mt-4">
 				<p className="text-xs font-medium text-neutral-700 dark:text-neutral-200">

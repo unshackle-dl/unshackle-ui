@@ -3,6 +3,7 @@ import type { TrackPatch } from '../server/db';
 import { deleteTrack, getItems, getTrack, updateTrack } from '../server/db';
 import { fail, readJson, str } from '../server/http';
 import { callerKey } from '../server/owner';
+import { isReleaseDay, isReleaseTime, isTimeZone } from '$lib/tracking/schedule';
 
 const STATES = ['active', 'paused'] as const;
 
@@ -41,17 +42,23 @@ export const Route = createFileRoute('/api/tracking/$id')({
 						return fail(400, `state must be one of: ${STATES.join(', ')}.`);
 					patch.state = state as (typeof STATES)[number];
 				}
-				if (body.interval_ms !== undefined) {
-					if (body.interval_ms === null) {
-						patch.interval_ms = null;
-					} else {
-						const n = Number(body.interval_ms);
-						if (!Number.isFinite(n) || n < 60_000)
-							return fail(400, 'interval_ms must be at least 60000, or null for the default.');
-						patch.interval_ms = Math.round(n);
-					}
+				if (body.release_day !== undefined) {
+					if (!isReleaseDay(body.release_day))
+						return fail(400, 'release_day must be a weekday from 0 (Sunday) to 6 (Saturday).');
+					patch.release_day = body.release_day;
 				}
-
+				if (body.release_time !== undefined) {
+					const releaseTime = str(body.release_time);
+					if (!releaseTime || !isReleaseTime(releaseTime))
+						return fail(400, 'release_time must use HH:mm format.');
+					patch.release_time = releaseTime;
+				}
+				if (body.time_zone !== undefined) {
+					const timeZone = str(body.time_zone);
+					if (!timeZone || !isTimeZone(timeZone))
+						return fail(400, 'time_zone must be a valid IANA time zone.');
+					patch.time_zone = timeZone;
+				}
 				const track = updateTrack(params.id, callerKey(request), patch);
 				if (!track) return fail(404, NOT_FOUND);
 				return Response.json({ track });

@@ -1,10 +1,22 @@
 import { createFileRoute } from '@tanstack/react-router';
 import type { SeedCode, TrackKind, TrackPreset } from '$lib/tracking/types';
 import { TRACK_KINDS } from '$lib/tracking/types';
-import { createTrack, getItems, listTracks } from '../server/db';
+import {
+	createTrack,
+	getItems,
+	getTrack,
+	listTracks,
+	markTrackCodesDownloaded,
+	setTrackRetry,
+	stampChecked
+} from '../server/db';
+import { buildAutoDownloadRequest } from '../server/auto-download';
+import { config } from '../server/config';
 import { fail, readJson, str } from '../server/http';
 import { callerKey } from '../server/owner';
 import { startPoller } from '../server/poller';
+import { download, upstreamMessage } from '../server/upstream';
+import { isReleaseDay, isReleaseTime, isTimeZone } from '$lib/tracking/schedule';
 
 // Codes arrive from the title page, which already holds the episode list, so creating a
 // track normally costs zero extra list-titles calls. Both shapes are accepted so a plain
@@ -52,8 +64,15 @@ export const Route = createFileRoute('/api/tracking')({
 				const service = str(payload.service);
 				const titleId = str(payload.title_id);
 				const remote = str(payload.remote);
+				const releaseDay = body.release_day == null ? 4 : Number(body.release_day);
+				const releaseTime = str(body.release_time) ?? '22:00';
+				const timeZone = str(body.time_zone) ?? 'UTC';
 				if (!service || !titleId)
 					return fail(400, 'payload must carry a non-empty service and title_id.');
+				if (!isReleaseDay(releaseDay))
+					return fail(400, 'release_day must be a weekday from 0 (Sunday) to 6 (Saturday).');
+				if (!isReleaseTime(releaseTime)) return fail(400, 'release_time must use HH:mm format.');
+				if (!isTimeZone(timeZone)) return fail(400, 'time_zone must be a valid IANA time zone.');
 
 				if (body.preset != null && (typeof body.preset !== 'object' || Array.isArray(body.preset)))
 					return fail(400, 'preset must be a JSON object.');
@@ -68,17 +87,46 @@ export const Route = createFileRoute('/api/tracking')({
 					preset: (body.preset ?? {}) as TrackPreset,
 					codes,
 					baseline: body.baseline === true,
-					owner: callerKey(request)
+					owner: callerKey(request),
+					releaseDay,
+					releaseTime,
+					timeZone
 				});
-				// The boot call is a no-op on an empty database, so the first track ever added
-				// would otherwise not be polled until the next restart. Idempotent.
-				startPoller();
-				// Recounted from storage rather than from `codes`, which may repeat a code.
 				const items = getItems(track.id);
+				const initialNewCodes = items
+					.filter((item) => item.seen_at === null)
+					.map((item) => item.code);
+				if (track.kind === 'series' && initialNewCodes.length) {
+					const attemptedAt = new Date().toISOString();
+					setTrackRetry(track.id, true, 0, initialNewCodes);
+					stampChecked(track.id, attemptedAt, null);
+					if (config.apiUrlConfigured) {
+						try {
+							await download(buildAutoDownloadRequest(track, initialNewCodes));
+							markTrackCodesDownloaded(track.id, initialNewCodes);
+							setTrackRetry(track.id, false, 0, []);
+							stampChecked(track.id, new Date().toISOString(), null);
+						} catch (error) {
+							const message = upstreamMessage(error);
+							setTrackRetry(track.id, true, 1, initialNewCodes);
+							stampChecked(track.id, new Date().toISOString(), message);
+							console.warn(`[tracking] immediate download failed for ${track.id}: ${message}`);
+						}
+					} else {
+						stampChecked(
+							track.id,
+							new Date().toISOString(),
+							'Automatic download is pending: configure the tracking API URL.'
+						);
+					}
+				}
+				// Idempotent; adding the first track starts polling without a server restart.
+				startPoller();
+				const refreshedTrack = getTrack(track.id, callerKey(request)) ?? track;
 				return Response.json(
 					{
 						track: {
-							...track,
+							...refreshedTrack,
 							total: items.length,
 							unseen: items.filter((i) => i.seen_at == null).length
 						}

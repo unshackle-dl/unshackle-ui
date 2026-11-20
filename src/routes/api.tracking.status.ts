@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import type { TrackingStatus } from '$lib/tracking/types';
-import { apiHost, config } from '../server/config';
+import { apiHost } from '../server/config';
 import {
 	activeTrackCount,
 	dueTargets,
@@ -42,7 +42,6 @@ export const Route = createFileRoute('/api/tracking/status')({
 					running,
 					running_since: open?.started_at ?? null,
 					last_sync,
-					interval_ms: config.intervalMs,
 					stale,
 					tracks: tracks.length,
 					unseen_total: tracks.reduce((n, t) => n + t.unseen, 0),

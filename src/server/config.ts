@@ -23,8 +23,6 @@ export interface ServerConfig {
 	/** Sent as X-Secret-Key. Empty when the API runs with --no-key. */
 	apiKey: string;
 	dbPath: string;
-	/** How often a full sweep of tracked records should run. */
-	intervalMs: number;
 	/** Gap between individual checks inside a sweep. list-titles is expensive upstream. */
 	staggerMs: number;
 	/** Outbound summary webhook. Empty disables it. */
@@ -35,18 +33,15 @@ export interface ServerConfig {
 export const SETTING_ENV: Record<SettingKey, string> = {
 	apiUrl: 'UNSHACKLE_API_URL',
 	apiKey: 'UNSHACKLE_API_KEY',
-	intervalMs: 'TRACKING_INTERVAL_MS',
 	staggerMs: 'TRACKING_STAGGER_MS',
 	webhookUrl: 'TRACKING_WEBHOOK_URL'
 };
-export type SettingKey = 'apiUrl' | 'apiKey' | 'intervalMs' | 'staggerMs' | 'webhookUrl';
+export type SettingKey = 'apiUrl' | 'apiKey' | 'staggerMs' | 'webhookUrl';
 
 /** Raw override strings as stored in the meta table. Absent key = fall back to env. */
 export type Overrides = Partial<Record<SettingKey, string>>;
 
 export type SettingSource = 'web' | 'env' | 'default';
-
-const HOUR = 60 * 60 * 1000;
 
 function num(key: string, fallback: number): number {
 	const raw = process.env[key];
@@ -98,7 +93,6 @@ function merged(): ServerConfig {
 		apiUrlConfigured: envSet || overrides.apiUrl !== undefined,
 		apiKey: overrides.apiKey ?? (process.env.UNSHACKLE_API_KEY ?? '').trim(),
 		dbPath: (process.env.TRACKING_DB_PATH ?? '').trim() || './data/tracking.db',
-		intervalMs: numOv(overrides.intervalMs, num('TRACKING_INTERVAL_MS', 6 * HOUR)),
 		staggerMs: numOv(overrides.staggerMs, num('TRACKING_STAGGER_MS', 30_000)),
 		webhookUrl: urlOv(overrides.webhookUrl, (process.env.TRACKING_WEBHOOK_URL ?? '').trim())
 	};

@@ -47,7 +47,6 @@ export function settingsView(): Omit<TrackingSettings, 'poller'> {
 	return {
 		api_url: { value: showUrl(config.apiUrl, src.apiUrl), source: src.apiUrl },
 		api_key: { set: config.apiKey !== '', source: src.apiKey },
-		interval_ms: { value: config.intervalMs, source: src.intervalMs },
 		stagger_ms: { value: config.staggerMs, source: src.staggerMs },
 		webhook_url: { value: showUrl(config.webhookUrl, src.webhookUrl), source: src.webhookUrl },
 		db_path: config.dbPath
@@ -56,8 +55,6 @@ export function settingsView(): Omit<TrackingSettings, 'poller'> {
 
 // Below one minute a sweep can outlive its own interval; the env path has no floor
 // because whoever sets env vars can read this code.
-const MIN_INTERVAL_MS = 60_000;
-
 export type UpdateResult = { ok: true } | { ok: false; error: string };
 
 /**
@@ -82,12 +79,10 @@ export function updateSettings(patch: Record<string, unknown>): UpdateResult {
 			}
 			s = s.replace(/\/+$/, '');
 		}
-		if (key === 'intervalMs' || key === 'staggerMs') {
+		if (key === 'staggerMs') {
 			const n = Number(s);
 			if (!Number.isFinite(n) || n <= 0)
 				return { ok: false, error: `${k} must be a positive number of milliseconds` };
-			if (key === 'intervalMs' && n < MIN_INTERVAL_MS)
-				return { ok: false, error: 'intervalMs must be at least 60000 (one minute)' };
 		}
 		writes.set(key, s);
 	}

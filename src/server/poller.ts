@@ -56,7 +56,7 @@ export function startPoller(): void {
 		);
 	}, TICK_MS);
 	console.log(
-		`[poller] running: due titles checked every minute, default interval ${Math.round(config.intervalMs / 1000)}s`
+		'[poller] running: release windows checked every minute; retries run every five minutes'
 	);
 }
 

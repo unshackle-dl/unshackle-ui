@@ -62,8 +62,8 @@ function TrackingPage() {
 				<div>
 					<h1 className="text-2xl font-semibold tracking-tight">Tracking</h1>
 					<p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-						Series this server re-lists on a schedule. New episode codes stay unseen until you mark
-						them, or until a download of them shows up in history.
+						Tracking checks each series at its expected weekly release time, downloads newly listed
+						episodes, and retries briefly when a release is delayed.
 					</p>
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -154,23 +154,16 @@ function TrackingPage() {
 const INPUT =
 	'mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100';
 
-function human(ms: number): string {
-	if (ms % 3_600_000 === 0) return `${ms / 3_600_000}h`;
-	if (ms >= 60_000) return `${Math.round(ms / 60_000)}m`;
-	return `${Math.round(ms / 1000)}s`;
-}
-
 function SourceBadge({ source }: { source: SettingSource }) {
 	if (source === 'web') return <Badge tone="accent">set here</Badge>;
 	return <Badge tone="neutral">{source === 'env' ? 'from env' : 'default'}</Badge>;
 }
 
-type CfgKey = 'apiUrl' | 'apiKey' | 'intervalMs' | 'staggerMs' | 'webhookUrl';
+type CfgKey = 'apiUrl' | 'apiKey' | 'staggerMs' | 'webhookUrl';
 
 /**
  * Server-side tracking configuration. Every field is stored raw in the tracking db and
- * wins over its env var; a cleared field falls back to env. The two durations are edited
- * in minutes and seconds and converted to ms on save, since nobody thinks in ms.
+ * wins over its env var; a cleared field falls back to env. The stagger is edited in seconds.
  */
 function ConfigModal({ onClose }: { onClose: () => void }) {
 	const queryClient = useQueryClient();
@@ -214,15 +207,13 @@ function ConfigModal({ onClose }: { onClose: () => void }) {
 				patch[k] = null;
 				continue;
 			}
-			if (k === 'intervalMs' || k === 'staggerMs') {
+			if (k === 'staggerMs') {
 				const n = Number(v);
 				if (!Number.isFinite(n) || n <= 0) {
-					setError(
-						`${k === 'intervalMs' ? 'Check interval' : 'Stagger'} must be a positive number`
-					);
+					setError('Stagger must be a positive number');
 					return;
 				}
-				patch[k] = Math.round(n * (k === 'intervalMs' ? 60_000 : 1000));
+				patch[k] = Math.round(n * 1000);
 			} else {
 				patch[k] = v;
 			}
@@ -298,14 +289,14 @@ function ConfigModal({ onClose }: { onClose: () => void }) {
 					<div className="flex items-start gap-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
 						<Icon name="alert" size={14} className="mt-0.5 shrink-0" />
 						<span>
-							The poller is inert: no API URL is configured, so nothing is checked on a schedule.
-							Set one below or via <span className="font-mono">UNSHACKLE_API_URL</span>.
+							The poller is inert: no API URL is configured, so automatic tracking is disabled. Set
+							one below or via <span className="font-mono">UNSHACKLE_API_URL</span>.
 						</span>
 					</div>
 				) : (
 					<p className="text-xs text-neutral-500 dark:text-neutral-400">
 						{s.poller === 'running'
-							? `Poller running: a sweep every ${human(s.interval_ms.value)}.`
+							? 'Poller running: series are checked at their release windows, with short retries for delayed episodes.'
 							: 'Poller idle: configured, waiting for the first active track.'}
 					</p>
 				)}
@@ -325,13 +316,6 @@ function ConfigModal({ onClose }: { onClose: () => void }) {
 					initial: '',
 					placeholder: s.api_key.set ? 'configured (type to replace)' : 'not set',
 					hint: 'Sent as X-Secret-Key on poll requests. Never shown back here.'
-				})}
-				{field('intervalMs', 'Check interval (minutes)', {
-					type: 'number',
-					source: s.interval_ms.source,
-					initial: s.interval_ms.source === 'web' ? String(s.interval_ms.value / 60_000) : '',
-					placeholder: String(s.interval_ms.value / 60_000),
-					hint: `A full sweep of every tracked title, currently every ${human(s.interval_ms.value)}.`
 				})}
 				{field('staggerMs', 'Stagger between titles (seconds)', {
 					type: 'number',
@@ -465,9 +449,11 @@ function TrackCard({
 							<Badge tone="neutral">{track.total} episodes</Badge>
 						)}
 						{track.state !== 'active' && <Badge tone="amber">{track.state}</Badge>}
-						{track.interval_ms != null && (
-							<Badge tone="neutral">every {human(track.interval_ms)}</Badge>
-						)}
+						<Badge tone="neutral">
+							{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][track.release_day]}{' '}
+							{track.release_time} {track.time_zone}
+						</Badge>
+						{track.retry_active && <Badge tone="amber">retry {track.retry_count}/5</Badge>}
 					</div>
 					<p className="mt-1 font-mono text-xs text-neutral-400 dark:text-neutral-500">
 						{track.kind === 'search'
@@ -522,16 +508,125 @@ function TrackCard({
 			)}
 
 			{expanded && (
-				<PresetEditor
-					// Remounted when the service's option set finally loads, so the form is built
-					// from the real fields rather than from an empty list.
-					key={`${track.id}:${svcFields.map((f) => f.key).join(',')}`}
-					track={track}
-					svcFields={svcFields}
-					onSaved={onSaved}
-				/>
+				<>
+					<div className="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+						<ScheduleEditor track={track} onSaved={onSaved} />
+					</div>
+					<PresetEditor
+						// Remounted when the service's option set finally loads, so the form is built
+						// from the real fields rather than from an empty list.
+						key={`${track.id}:${svcFields.map((f) => f.key).join(',')}`}
+						track={track}
+						svcFields={svcFields}
+						onSaved={onSaved}
+					/>
+				</>
 			)}
 		</Card>
+	);
+}
+
+function ScheduleEditor({ track, onSaved }: { track: TrackSummary; onSaved: () => void }) {
+	const [releaseDay, setReleaseDay] = useState(track.release_day);
+	const [releaseTime, setReleaseTime] = useState(track.release_time);
+	const [timeZone, setTimeZone] = useState(track.time_zone);
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [saved, setSaved] = useState(false);
+
+	async function save() {
+		setSaving(true);
+		setError(null);
+		setSaved(false);
+		try {
+			await tracking.patch(track.id, {
+				release_day: releaseDay,
+				release_time: releaseTime,
+				time_zone: timeZone.trim()
+			});
+			setSaved(true);
+			onSaved();
+		} catch (e) {
+			setError(trackingErrorMessage(e));
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	return (
+		<section className="space-y-3">
+			<div>
+				<h3 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+					Release schedule
+				</h3>
+				<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+					The weekly check uses this local release window. Delayed releases are retried every five
+					minutes.
+				</p>
+			</div>
+			<div className="grid gap-3 sm:grid-cols-3">
+				<label className="block text-xs text-neutral-600 dark:text-neutral-400">
+					Release day
+					<select
+						value={releaseDay}
+						onChange={(event) => {
+							setReleaseDay(Number(event.target.value));
+							setSaved(false);
+						}}
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					>
+						{['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(
+							(day, index) => (
+								<option key={day} value={index}>
+									{day}
+								</option>
+							)
+						)}
+					</select>
+				</label>
+				<label className="block text-xs text-neutral-600 dark:text-neutral-400">
+					Release time
+					<input
+						type="time"
+						value={releaseTime}
+						onChange={(event) => {
+							setReleaseTime(event.target.value);
+							setSaved(false);
+						}}
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					/>
+				</label>
+				<label className="block text-xs text-neutral-600 dark:text-neutral-400">
+					Time zone (IANA)
+					<input
+						type="text"
+						value={timeZone}
+						onChange={(event) => {
+							setTimeZone(event.target.value);
+							setSaved(false);
+						}}
+						placeholder="America/Recife"
+						autoComplete="off"
+						className="mt-1 block w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+					/>
+				</label>
+			</div>
+			<div className="flex flex-wrap items-center gap-3">
+				<Button onClick={save} disabled={saving}>
+					{saving ? <Icon name="loader" size={16} spin /> : <Icon name="check" size={16} />}
+					Save schedule
+				</Button>
+				{saved && !saving && (
+					<span className="text-xs text-neutral-500 dark:text-neutral-400">Schedule saved.</span>
+				)}
+				{error && (
+					<span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+						<Icon name="alert" size={14} />
+						{error}
+					</span>
+				)}
+			</div>
+		</section>
 	);
 }
 
@@ -549,9 +644,6 @@ function PresetEditor({
 	// selections, and options belonging to a different service. It is state so it rides
 	// straight back into buildPreset. Drop it and saving would silently delete them.
 	const [form, setForm] = useState<PresetForm>(() => applyPreset(track.preset, svcFields));
-	const [intervalMin, setIntervalMin] = useState(() =>
-		track.interval_ms == null ? '' : String(track.interval_ms / 60_000)
-	);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [saved, setSaved] = useState(false);
@@ -560,19 +652,10 @@ function PresetEditor({
 	const tvdbOrder = form.extra.tvdb_order;
 
 	async function save() {
-		let interval_ms: number | null = null;
-		if (intervalMin.trim() !== '') {
-			const n = Number(intervalMin);
-			if (!Number.isFinite(n) || n < 1) {
-				setError('Check interval must be at least 1 minute, or blank for the default.');
-				return;
-			}
-			interval_ms = Math.round(n * 60_000);
-		}
 		setSaving(true);
 		setError(null);
 		try {
-			await tracking.patch(track.id, { preset: buildPreset(form, svcFields), interval_ms });
+			await tracking.patch(track.id, { preset: buildPreset(form, svcFields) });
 			setSaved(true);
 			onSaved();
 		} catch (e) {
@@ -586,7 +669,7 @@ function PresetEditor({
 		<div className="mt-4 space-y-4 border-t border-neutral-200 pt-4 dark:border-neutral-700">
 			<p className="text-xs text-neutral-500 dark:text-neutral-400">
 				The params this title is re-listed with. Transport options and the service's own cli options
-				decide which episodes are found; the rest is stored for a later download.
+				decide which episodes are found; new episode codes are automatically submitted for download.
 			</p>
 
 			{svcFields.length > 0 && (
@@ -641,28 +724,6 @@ function PresetEditor({
 					</span>
 				</div>
 			)}
-
-			<div className="rounded-lg border border-neutral-200 px-3 py-2.5 dark:border-neutral-700">
-				<label
-					htmlFor={`ivl-${track.id}`}
-					className="block text-xs font-medium text-neutral-700 dark:text-neutral-200"
-				>
-					Check interval (minutes)
-				</label>
-				<input
-					id={`ivl-${track.id}`}
-					type="number"
-					step="any"
-					min={1}
-					value={intervalMin}
-					onChange={(e) => (setSaved(false), setIntervalMin(e.target.value))}
-					placeholder="server default"
-					className="mt-1.5 w-full max-w-48 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 font-mono text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-accent-500 focus:ring-2 focus:ring-accent-500/30 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-				/>
-				<p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-					Only for this title. Blank uses the server-wide interval from the Settings dialog.
-				</p>
-			</div>
 
 			<div className="flex items-center gap-3">
 				<Button onClick={save} disabled={saving}>

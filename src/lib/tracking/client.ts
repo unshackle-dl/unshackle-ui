@@ -74,6 +74,9 @@ export interface AddTrackInput {
 	codes: SeedCode[];
 	/** true stamps the seeded codes as already seen, so only later arrivals are "new". */
 	baseline: boolean;
+	release_day: number;
+	release_time: string;
+	time_zone: string;
 }
 
 export const tracking = {
@@ -101,7 +104,14 @@ export const tracking = {
 
 	patch: (
 		trackId: string,
-		patch: { label?: string; preset?: TrackPreset; state?: string; interval_ms?: number | null }
+		patch: {
+			label?: string;
+			preset?: TrackPreset;
+			state?: string;
+			release_day?: number;
+			release_time?: string;
+			time_zone?: string;
+		}
 	) =>
 		request<{ track: TrackRecord }>(`/api/tracking/${id(trackId)}`, {
 			method: 'PATCH',
