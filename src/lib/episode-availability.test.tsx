@@ -8,7 +8,7 @@ import {
 	confirmedSelection,
 	uniqueEpisodeTitles
 } from './episode-availability';
-import EpisodeAccessPicker from './components/EpisodeAccessPicker';
+import EpisodePicker from './components/EpisodePicker';
 import AvailabilityBadges from './components/AvailabilityBadges';
 
 const episode = (number: number, availability?: TitleAvailability): Title => ({
@@ -62,16 +62,19 @@ test('duplicate codes render once and any explicit denial wins in either order',
 		assert.equal(uniqueEpisodeTitles(titles).length, 1);
 		assert.deepEqual(accessibleSelection(['S01E01'], titles), []);
 		const html = renderToStaticMarkup(
-			<EpisodeAccessPicker
-				titles={titles}
+			<EpisodePicker
+				titles={uniqueEpisodeTitles(titles)}
 				selected={['S01E01']}
 				onChange={() => {}}
 				unseen={new Set(['S01E01'])}
+				selectable={canSelectTitle}
+				renderStatus={(t) => <AvailabilityBadges title={t} />}
 			/>
 		);
-		assert.equal((html.match(/aria-pressed=/g) ?? []).length, 1);
+		assert.equal((html.match(/aria-label="S01E01"/g) ?? []).length, 1);
 		assert.match(html, /0 selected/);
 		assert.match(html, /disabled=""/);
+		assert.match(html, /No account access/);
 		assert.doesNotMatch(html, /New \(1\)/);
 	}
 });
