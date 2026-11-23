@@ -261,8 +261,8 @@ function TitlePage() {
 				buildDownloadRequest(
 					{ service, title_id: titleId },
 					{
-						// An empty wanted selector is omitted, preserving the backend default: all episodes.
-						wanted: selected,
+						// An empty selection means all episodes; send them so progress can list them.
+						wanted: selected.length ? selected : episodeOptions.map((o) => o.value),
 						quality: qualitySel,
 						vcodec: codecSel,
 						range: rangeSel,
