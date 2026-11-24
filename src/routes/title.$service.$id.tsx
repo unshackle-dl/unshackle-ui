@@ -9,7 +9,14 @@ import Card from '$lib/components/Card';
 import ChipSelect from '$lib/components/ChipSelect';
 import Icon from '$lib/components/Icon';
 import EpisodePicker from '$lib/components/EpisodePicker';
-import { episodeGroups } from '$lib/episode-picker';
+import AvailabilityBadges from '$lib/components/AvailabilityBadges';
+import {
+	accessibleSelection,
+	canSelectTitle,
+	confirmedSelection,
+	selectableEpisodeCodes,
+	uniqueEpisodeTitles
+} from '$lib/episode-availability';
 import OptionForm, { type OptionValues } from '$lib/components/OptionForm';
 import Overlay from '$lib/components/Overlay';
 import { ADVANCED_FIELDS, blankAdvanced, buildDownloadRequest } from '$lib/download';
@@ -102,14 +109,17 @@ function TitlePage() {
 	const search = Route.useSearch();
 	// Runner-up services from the Browse match, passed along as ?alt=TAG,TAG.
 	const alts = (search.alt ?? '').split(',').filter(Boolean);
-	const { titles, error } = Route.useLoaderData();
+	const { titles: listedTitles, error } = Route.useLoaderData();
+	// Loader dependency changes remount this component, including its refresh state.
+	const [refreshed, setRefreshed] = useState<Title[] | null>(null);
+	const titles = refreshed ?? listedTitles;
 
 	const episodic = isEpisodic(titles);
 	const split = hasParts(titles);
-	const first = titles[0];
+	const first = titles.find(canSelectTitle) ?? titles[0];
 	const header = first?.series_title || first?.name || 'Title';
 
-	// Explicit episode selection: clearing the picker never starts a full-series download.
+	// Empty selection preserves the default: all currently accessible episodes.
 	const [epSel, setEpSel] = useState<string[]>([]);
 	const [loadedSel, setLoadedSel] = useState<string[]>([]);
 	const stale = JSON.stringify(epSel) !== JSON.stringify(loadedSel);
@@ -176,12 +186,27 @@ function TitlePage() {
 		[trackDetail.data]
 	);
 
-	const episodeOptions = episodeGroups(titles).flatMap(({ episodes }) =>
-		episodes.map((title) => ({ value: wantedCode(title)! }))
-	);
-	const selected = [...new Set(epSel)].filter((code) =>
-		episodeOptions.some((option) => option.value === code)
-	);
+	const episodeTitles = uniqueEpisodeTitles(titles);
+	const episodeOptions = episodeTitles.map((t) => ({ value: wantedCode(t)! }));
+	const selected = accessibleSelection(epSel, titles);
+	const reloadTitles = async () => {
+		const current = await api.listTitles({
+			...coerce(svcFields, svcValues),
+			service,
+			title_id: titleId,
+			profile: String(advanced.profile).trim() || undefined,
+			proxy: String(advanced.proxy).trim() || undefined,
+			no_proxy: advanced.no_proxy === true || undefined
+		});
+		setRefreshed(current);
+		return current;
+	};
+	const refreshStatus = useMutation({
+		mutationFn: async () => {
+			const current = await reloadTitles();
+			setEpSel((selection) => accessibleSelection(selection, current));
+		}
+	});
 
 	// Manual: load tracks for the selected episodes (or the first episode / movie
 	// when nothing is selected). Episode selection alone never triggers this.
@@ -189,13 +214,13 @@ function TitlePage() {
 		mutationFn: (sel: string[]) => {
 			const targets: Title[] =
 				episodic && sel.length
-					? episodeGroups(titles)
-							.flatMap(({ episodes }) => episodes)
-							.filter((t) => {
-								const c = wantedCode(t);
-								return c != null && sel.includes(c);
-							})
-					: [first];
+					? uniqueEpisodeTitles(titles).filter((t) => {
+							const c = wantedCode(t);
+							return c != null && sel.includes(c) && canSelectTitle(t);
+						})
+					: first && canSelectTitle(first)
+						? [first]
+						: [];
 			return Promise.all(
 				targets.map(async (t): Promise<EpisodeTracks> => ({
 					code: wantedCode(t),
@@ -225,11 +250,11 @@ function TitlePage() {
 	});
 	const trackResults = tracks.data ?? [];
 
-	const loadSelection = () => tracks.mutate(epSel);
+	const loadSelection = () => tracks.mutate(selected);
 
 	// Initial load, once the title data is in. Deliberately not re-run on epSel changes.
 	useEffect(() => {
-		if (first) tracks.mutate([]);
+		if (listedTitles.some(canSelectTitle)) tracks.mutate([]);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [service, titleId]);
 
@@ -256,13 +281,25 @@ function TitlePage() {
 	const originalLangs = combined?.originalAudioLangs ?? [];
 
 	const start = useMutation({
-		mutationFn: () => {
+		mutationFn: async () => {
+			const requested = epSel.length ? epSel : selectableEpisodeCodes(titles);
+			const current = titles.some((t) => t.availability !== undefined)
+				? await reloadTitles()
+				: titles;
+			const wanted = accessibleSelection(requested, current);
+			if (episodic) {
+				setEpSel(wanted);
+				if (!requested.length) throw new Error('No accessible episodes are available.');
+				confirmedSelection(requested, current);
+			} else if (!current.some(canSelectTitle)) {
+				throw new Error('This account does not have access to this title.');
+			}
 			return api.download(
 				buildDownloadRequest(
 					{ service, title_id: titleId },
 					{
-						// An empty selection means all episodes; send them so progress can list them.
-						wanted: selected.length ? selected : episodeOptions.map((o) => o.value),
+						// Expand the empty-selection default into accessible codes so denied titles never enter the batch.
+						wanted,
 						quality: qualitySel,
 						vcodec: codecSel,
 						range: rangeSel,
@@ -289,6 +326,7 @@ function TitlePage() {
 
 			<div className="mt-3 flex flex-wrap items-center gap-3">
 				<h1 className="text-2xl font-semibold tracking-tight">{mask.title(header)}</h1>
+				{!episodic && first && <AvailabilityBadges title={first} />}
 				{first?.type && <Badge tone="accent">{episodic ? 'series' : first.type}</Badge>}
 				{first?.year && (
 					<span className="text-sm text-neutral-500 dark:text-neutral-400">{first.year}</span>
@@ -335,19 +373,36 @@ function TitlePage() {
 						{episodic && episodeOptions.length > 0 && (
 							<Card className="p-5">
 								<EpisodePicker
-									titles={titles}
+									titles={uniqueEpisodeTitles(titles)}
 									selected={selected}
 									onChange={setEpSel}
 									unseen={unseenCodes}
+									selectable={canSelectTitle}
+									renderStatus={(t) => <AvailabilityBadges title={t} />}
 								/>
-								<button
-									type="button"
-									onClick={loadSelection}
-									disabled={tracks.isPending || !selected.length}
-									className="mt-3 text-xs text-accent-600 disabled:opacity-40"
-								>
-									Refresh selected tracks
-								</button>
+								<div className="mt-3 flex flex-wrap gap-3 text-xs">
+									<button
+										type="button"
+										onClick={() => refreshStatus.mutate()}
+										disabled={refreshStatus.isPending || start.isPending}
+										className="text-accent-600 disabled:opacity-40"
+									>
+										{refreshStatus.isPending ? 'Refreshing availability…' : 'Refresh availability'}
+									</button>
+									<button
+										type="button"
+										onClick={loadSelection}
+										disabled={tracks.isPending || !selected.length}
+										className="text-accent-600 disabled:opacity-40"
+									>
+										Refresh selected tracks
+									</button>
+								</div>
+								{refreshStatus.error && (
+									<p role="alert" className="mt-2 text-sm text-red-600">
+										{mask.text(errorMessage(refreshStatus.error))}
+									</p>
+								)}
 
 								{split && (
 									<p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
@@ -374,7 +429,11 @@ function TitlePage() {
 									</span>
 								)}
 							</div>
-							{tracks.isPending ? (
+							{first && !canSelectTitle(first) ? (
+								<p role="status" className="mt-3 text-sm text-red-600">
+									This account does not have access to this title.
+								</p>
+							) : tracks.isPending ? (
 								<div className="flex items-center gap-2 py-8 text-sm text-neutral-500 dark:text-neutral-400">
 									<Icon name="loader" spin /> Loading tracks…
 								</div>
@@ -517,7 +576,15 @@ function TitlePage() {
 								<div className="flex flex-wrap items-center gap-2">
 									<Button
 										onClick={() => start.mutate()}
-										disabled={start.isPending || tracks.isPending || !!tracks.error}
+										disabled={
+											start.isPending ||
+											refreshStatus.isPending ||
+											tracks.isPending ||
+											!!tracks.error ||
+											(episodic
+												? !(epSel.length ? selected.length : selectableEpisodeCodes(titles).length)
+												: !first || !canSelectTitle(first))
+										}
 										className="w-full sm:w-auto"
 									>
 										{start.isPending ? (
@@ -564,6 +631,8 @@ function TitlePage() {
 									<>
 										<Icon name="loader" spin /> Loading tracks…
 									</>
+								) : first && !canSelectTitle(first) ? (
+									'This account does not have access to this title.'
 								) : (
 									'Select an episode to load tracks.'
 								)}
