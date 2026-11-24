@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { Title } from './api/types';
 import { episodeGroups, toggleEpisodeGroup } from './episode-picker';
 import EpisodePicker from './components/EpisodePicker';
 import { wantedCode } from './tracks';
+import * as incognito from './stores/incognito';
 
 const episode = (season: number, number: number, part?: number): Title => ({
 	type: 'episode',
@@ -86,4 +87,50 @@ test('empty selection explains the all-episodes default and singular season coun
 	assert.match(html, /1 season · 0 selected/);
 	assert.match(html, /· 1 episode</);
 	assert.doesNotMatch(html, /1 episodes|1 seasons/);
+});
+
+test('existing metadata stays accessible without loading artwork', () => {
+	const title = {
+		...episode(1, 1),
+		name: 'Example episode',
+		year: 2026,
+		description: 'Example description',
+		cover_url: 'https://example.invalid/cover.jpg'
+	};
+	const html = renderToStaticMarkup(
+		<EpisodePicker
+			titles={[title]}
+			selected={[]}
+			onChange={() => {}}
+			unseen={new Set()}
+			renderStatus={() => <span>Example status</span>}
+		/>
+	);
+	assert.match(html, /Example episode/);
+	assert.match(html, /2026/);
+	assert.match(html, /title="Example description"/);
+	assert.match(html, /aria-describedby="([^"]+)"/);
+	const descriptionId = html.match(/aria-describedby="([^"]+)"/)![1];
+	assert.ok(html.includes(`id="${descriptionId}"`));
+	assert.match(html, /Example status/);
+	assert.doesNotMatch(html, /<img|cover\.jpg/);
+});
+
+test('incognito masks the new year and description surfaces', () => {
+	const title = {
+		...episode(1, 1),
+		name: 'Private episode name',
+		year: 2026,
+		description: 'Private description'
+	};
+	const mock = vi.spyOn(incognito, 'useMask').mockReturnValue(incognito.maskers(true));
+	try {
+		const html = renderToStaticMarkup(
+			<EpisodePicker titles={[title]} selected={[]} onChange={() => {}} unseen={new Set()} />
+		);
+		assert.doesNotMatch(html, /Private episode name|Private description|2026/);
+		assert.match(html, /hidden by incognito/);
+	} finally {
+		mock.mockRestore();
+	}
 });
