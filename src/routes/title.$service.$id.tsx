@@ -365,59 +365,7 @@ function TitlePage() {
 				</Card>
 			) : (
 				<>
-					<div
-						className={`mt-6 grid gap-6 ${
-							episodic && episodeOptions.length > 0 ? 'lg:grid-cols-2' : ''
-						}`}
-					>
-						{episodic && episodeOptions.length > 0 && (
-							<Card className="p-5">
-								<EpisodePicker
-									titles={uniqueEpisodeTitles(titles)}
-									selected={selected}
-									onChange={setEpSel}
-									unseen={unseenCodes}
-									selectable={canSelectTitle}
-									renderStatus={(t) => <AvailabilityBadges title={t} />}
-								/>
-								<div className="mt-3 flex flex-wrap gap-3 text-xs">
-									<button
-										type="button"
-										onClick={() => refreshStatus.mutate()}
-										disabled={refreshStatus.isPending || start.isPending}
-										className="text-accent-600 disabled:opacity-40"
-									>
-										{refreshStatus.isPending ? 'Refreshing availability…' : 'Refresh availability'}
-									</button>
-									<button
-										type="button"
-										onClick={loadSelection}
-										disabled={tracks.isPending || !selected.length}
-										className="text-accent-600 disabled:opacity-40"
-									>
-										Refresh selected tracks
-									</button>
-								</div>
-								{refreshStatus.error && (
-									<p role="alert" className="mt-2 text-sm text-red-600">
-										{mask.text(errorMessage(refreshStatus.error))}
-									</p>
-								)}
-
-								{split && (
-									<p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
-										S01E01.2 is part 2 of one episode. Pick any part on its own, or all of them for
-										the whole episode.
-									</p>
-								)}
-								{stale && !tracks.isPending && (
-									<p className="mt-2 text-xs text-accent-600 dark:text-accent-400">
-										Selection changed. Click "Refresh selection" to update available tracks.
-									</p>
-								)}
-							</Card>
-						)}
-
+					<div className="mt-6">
 						<Card className="p-5">
 							<div className="flex items-center justify-between">
 								<h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -646,6 +594,53 @@ function TitlePage() {
 							</div>
 						)}
 					</Card>
+					{episodic && episodeOptions.length > 0 && (
+						<Card className="mt-6 p-5">
+							<EpisodePicker
+								titles={uniqueEpisodeTitles(titles)}
+								selected={selected}
+								onChange={setEpSel}
+								unseen={unseenCodes}
+								selectable={canSelectTitle}
+								renderStatus={(t) => <AvailabilityBadges title={t} />}
+							/>
+							<div className="mt-3 flex flex-wrap gap-3 text-xs">
+								<button
+									type="button"
+									onClick={() => refreshStatus.mutate()}
+									disabled={refreshStatus.isPending || start.isPending}
+									className="text-accent-600 disabled:opacity-40"
+								>
+									{refreshStatus.isPending ? 'Refreshing availability…' : 'Refresh availability'}
+								</button>
+								<button
+									type="button"
+									onClick={loadSelection}
+									disabled={tracks.isPending || !selected.length}
+									className="text-accent-600 disabled:opacity-40"
+								>
+									Refresh selected tracks
+								</button>
+							</div>
+							{refreshStatus.error && (
+								<p role="alert" className="mt-2 text-sm text-red-600">
+									{mask.text(errorMessage(refreshStatus.error))}
+								</p>
+							)}
+
+							{split && (
+								<p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">
+									S01E01.2 is part 2 of one episode. Pick any part on its own, or all of them for
+									the whole episode.
+								</p>
+							)}
+							{stale && !tracks.isPending && (
+								<p className="mt-2 text-xs text-accent-600 dark:text-accent-400">
+									Selection changed. Click "Refresh selection" to update available tracks.
+								</p>
+							)}
+						</Card>
+					)}
 				</>
 			)}
 
