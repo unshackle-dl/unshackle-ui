@@ -6,8 +6,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-	--font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
-	--font-mono: 'Geist Mono', ui-monospace, monospace;
+	--font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
 	/* Accent colors using CSS variables set by the accent store at runtime */
 	--color-accent-50: var(--accent-50);
@@ -30,6 +30,19 @@
 
 	/* Default accent (blue) - overridden at runtime by the accent store */
 	:root {
+		--bg: #0b0f14;
+		--sidebar: #0f141c;
+		--surface: #151c26;
+		--surface-hover: #1c2633;
+		--border-subtle: #283445;
+		--text: #f1f5f9;
+		--text-secondary: #a6b3c4;
+		--accent: #22d3ee;
+		--accent-foreground: #082129;
+		--accent-subtle: rgb(34 211 238 / 10%);
+		--success: #34d399;
+		--warning: #fbbf24;
+		--danger: #fb7185;
 		--accent-50: #eff6ff;
 		--accent-100: #dbeafe;
 		--accent-200: #bfdbfe;
@@ -47,6 +60,23 @@
 		@apply bg-neutral-50 dark:bg-neutral-900;
 	}
 
+	body {
+		font-family: var(--font-sans);
+		font-size: 14px;
+		line-height: 1.55;
+	}
+
+	.dark {
+		color-scheme: dark;
+		background: var(--bg);
+		color: var(--text);
+	}
+
+	.dark :is(button, a, input, select, textarea):focus-visible {
+		outline: 2px solid var(--accent-400);
+		outline-offset: 2px;
+	}
+
 	/* Incognito mode: free-text inputs can't be value-swapped, so render their text as dots */
 	html.incognito .redact {
 		-webkit-text-security: disc;
@@ -59,5 +89,102 @@
 	}
 	html.incognito .redact-poster {
 		filter: blur(12px);
+	}
+}
+
+@layer utilities {
+	.dark .bg-neutral-900 {
+		background-color: var(--bg);
+	}
+	.dark :is(.bg-neutral-800, .dark\:bg-neutral-800, .dark\:bg-neutral-800\/50) {
+		background-color: var(--surface);
+	}
+	.dark .dark\:bg-neutral-900 {
+		background-color: var(--bg);
+	}
+	.dark .hover\:bg-neutral-800:hover,
+	.dark .hover\:bg-neutral-700:hover,
+	.dark .dark\:hover\:bg-neutral-700\/60:hover {
+		background-color: var(--surface-hover);
+	}
+	.dark
+		:is(
+			.border-neutral-700,
+			.border-neutral-800,
+			.border-neutral-200,
+			.dark\:border-neutral-700,
+			.dark\:border-neutral-800
+		) {
+		border-color: var(--border-subtle);
+	}
+	.dark
+		:is(
+			.text-neutral-100,
+			.text-neutral-200,
+			.text-white,
+			.dark\:text-neutral-100,
+			.dark\:text-neutral-200
+		) {
+		color: var(--text);
+	}
+	.dark
+		:is(
+			.text-neutral-300,
+			.text-neutral-400,
+			.text-neutral-500,
+			.dark\:text-neutral-300,
+			.dark\:text-neutral-400,
+			.dark\:text-neutral-500
+		) {
+		color: var(--text-secondary);
+	}
+	.dark :is(.text-accent-300, .dark\:text-accent-300) {
+		color: var(--accent-300);
+	}
+	.dark :is(.text-accent-400, .dark\:text-accent-400) {
+		color: var(--accent-400);
+	}
+	.dark :is(.text-accent-500, .dark\:text-accent-500) {
+		color: var(--accent-500);
+	}
+	.dark :is(.text-accent-600, .dark\:text-accent-600) {
+		color: var(--accent-600);
+	}
+	.dark :is(.text-accent-700, .dark\:text-accent-700) {
+		color: var(--accent-700);
+	}
+	.dark :is(.text-accent-950, .dark\:text-accent-950) {
+		color: var(--accent-950);
+	}
+	.dark :is(.dark\:bg-accent-400, .bg-accent-400) {
+		background-color: var(--accent-400);
+	}
+	.dark
+		:is(
+			.bg-accent-500\/10,
+			.bg-accent-500\/15,
+			.dark\:bg-accent-500\/10,
+			.dark\:bg-accent-500\/15
+		) {
+		background-color: color-mix(in srgb, var(--accent-500) 10%, transparent);
+	}
+	.dark :is(.text-green-300, .dark\:text-green-300) {
+		color: var(--success);
+	}
+	.dark :is(.text-amber-200, .dark\:text-amber-200) {
+		color: var(--warning);
+	}
+	.dark :is(.text-red-300, .text-red-400, .dark\:text-red-300, .dark\:text-red-400) {
+		color: var(--danger);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
 	}
 }

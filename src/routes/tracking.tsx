@@ -35,7 +35,6 @@ function TrackingPage() {
 
 	const list = tracks.data ?? [];
 	const unseenTotal = list.reduce((n, t) => n + t.unseen, 0);
-
 	const refresh = () => queryClient.invalidateQueries({ queryKey: ['tracking'] });
 
 	async function run(key: string, fn: () => Promise<unknown>) {
@@ -60,7 +59,7 @@ function TrackingPage() {
 		<>
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h1 className="text-2xl font-semibold tracking-tight">Tracking</h1>
+					<h1 className="text-3xl font-bold tracking-tight">Tracking</h1>
 					<p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
 						Tracking checks each series at its expected weekly release time, downloads newly listed
 						episodes, and retries briefly when a release is delayed.
@@ -418,51 +417,53 @@ function TrackCard({
 	return (
 		<Card className="p-4">
 			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div className="min-w-0">
-					<div className="flex flex-wrap items-center gap-2">
-						<h2 className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-							{track.kind === 'search' ? (
-								mask.title(track.label)
+				<div className="flex min-w-0 flex-1 items-start gap-3">
+					<div className="min-w-0 flex-1">
+						<div className="flex flex-wrap items-center gap-2">
+							<h2 className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+								{track.kind === 'search' ? (
+									mask.title(track.label)
+								) : (
+									// A link, never a "download the new ones" button: detection sees the
+									// service's native numbering and a download with tvdb_order set
+									// renumbers, so nothing here may replay a preset into a download.
+									// Picking the episodes on the title page is the user's call.
+									<Link
+										to="/title/$service/$id"
+										params={{ service: track.payload.service, id: track.payload.title_id }}
+										onClick={openInSource}
+										title={remote ? `Opens through ${remote}` : undefined}
+										className="hover:underline"
+									>
+										{mask.title(track.label)}
+									</Link>
+								)}
+							</h2>
+							<Badge tone="neutral">{mask.service(track.payload.service)}</Badge>
+							{remote && <Badge tone="neutral">via {remote}</Badge>}
+							{track.unseen > 0 ? (
+								<Badge tone="accent">
+									{track.unseen} new of {track.total}
+								</Badge>
 							) : (
-								// A link, never a "download the new ones" button: detection sees the
-								// service's native numbering and a download with tvdb_order set
-								// renumbers, so nothing here may replay a preset into a download.
-								// Picking the episodes on the title page is the user's call.
-								<Link
-									to="/title/$service/$id"
-									params={{ service: track.payload.service, id: track.payload.title_id }}
-									onClick={openInSource}
-									title={remote ? `Opens through ${remote}` : undefined}
-									className="hover:underline"
-								>
-									{mask.title(track.label)}
-								</Link>
+								<Badge tone="neutral">{track.total} episodes</Badge>
 							)}
-						</h2>
-						<Badge tone="neutral">{mask.service(track.payload.service)}</Badge>
-						{remote && <Badge tone="neutral">via {remote}</Badge>}
-						{track.unseen > 0 ? (
-							<Badge tone="accent">
-								{track.unseen} new of {track.total}
+							{track.state !== 'active' && <Badge tone="amber">{track.state}</Badge>}
+							<Badge tone="neutral">
+								{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][track.release_day]}{' '}
+								{track.release_time} {track.time_zone}
 							</Badge>
-						) : (
-							<Badge tone="neutral">{track.total} episodes</Badge>
-						)}
-						{track.state !== 'active' && <Badge tone="amber">{track.state}</Badge>}
-						<Badge tone="neutral">
-							{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][track.release_day]}{' '}
-							{track.release_time} {track.time_zone}
-						</Badge>
-						{track.retry_active && <Badge tone="amber">retry {track.retry_count}/5</Badge>}
+							{track.retry_active && <Badge tone="amber">retry {track.retry_count}/5</Badge>}
+						</div>
+						<p className="mt-1 font-mono text-xs text-neutral-400 dark:text-neutral-500">
+							{track.kind === 'search'
+								? mask.text(track.payload.query)
+								: mask.id(track.payload.title_id)}
+						</p>
+						<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+							Last checked {when(track.last_checked)} · added {when(track.added_at)}
+						</p>
 					</div>
-					<p className="mt-1 font-mono text-xs text-neutral-400 dark:text-neutral-500">
-						{track.kind === 'search'
-							? mask.text(track.payload.query)
-							: mask.id(track.payload.title_id)}
-					</p>
-					<p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-						Last checked {when(track.last_checked)} · added {when(track.added_at)}
-					</p>
 				</div>
 
 				<div className="flex shrink-0 flex-wrap items-center gap-2">

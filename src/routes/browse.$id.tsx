@@ -89,7 +89,7 @@ function BrowseTitlePage() {
 					<img
 						src={title.posterUrl}
 						alt={mask.title(title.title)}
-						className="redact-poster w-32 shrink-0 self-start rounded-lg border border-neutral-200 sm:w-40 dark:border-neutral-800"
+						className="redact-poster w-32 shrink-0 self-start rounded-lg sm:w-40"
 					/>
 				)}
 				<div className="min-w-0">

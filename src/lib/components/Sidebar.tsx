@@ -35,20 +35,25 @@ export default function Sidebar() {
 			: path.startsWith(href);
 
 	return (
-		<aside className="flex w-60 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+		<aside className="flex w-60 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-[#0F141C]">
 			<div className="px-5 py-5">
 				<div className="flex items-center gap-2">
-					{/* Material Symbols: no_encryption */}
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						width="26"
 						height="26"
-						viewBox="0 -960 960 960"
-						fill="currentColor"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						strokeLinecap="round"
+						strokeLinejoin="round"
 						className="text-accent-600 dark:text-accent-500"
 						aria-hidden="true"
 					>
-						<path d="m800-274-80-80v-206H514l-80-80h166v-80q0-50-34.5-85T481-840q-50 0-84 34.5T363-720v9l-73-73q22-61 75-98.5T481-920q83 0 141 58.5T680-720v80h40q33 0 56.5 23.5T800-560v286Zm20 246-62-62q-11 5-20 7.5T720-80H240q-33 0-56.5-23.5T160-160v-400q0-25 14.5-46t37.5-30L28-820l56-56L876-84l-56 56ZM686-160 539-309q-11 11-25.5 17t-31.5 6q-33 0-56.5-23.5T402-366q0-17 6-31.5t17-25.5L286-560h-46v400h446ZM486-360Zm131-97Z" />
+						<rect width="18" height="11" x="3" y="10" rx="2" />
+						<path d="M7 10V7a5 5 0 0 1 9.9-1" />
+						<circle cx="12" cy="15" r="1" />
 					</svg>
 					<span className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-white">
 						unshackle-ui

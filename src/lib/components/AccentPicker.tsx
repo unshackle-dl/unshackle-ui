@@ -9,7 +9,7 @@ export default function AccentPicker() {
 		<div className="group relative">
 			<button
 				className="block h-5 w-5 rounded-full ring-1 ring-neutral-300 ring-offset-1 ring-offset-white transition group-hover:scale-110 dark:ring-neutral-600 dark:ring-offset-neutral-900"
-				style={{ backgroundColor: current.scale[5] }}
+				style={{ backgroundColor: current.scale[4] }}
 				aria-label={`Accent colour: ${current.name}`}
 				title="Accent colour"
 			/>
@@ -30,7 +30,7 @@ export default function AccentPicker() {
 									? 'ring-2 ring-neutral-400 ring-offset-1 ring-offset-white dark:ring-neutral-500 dark:ring-offset-neutral-800'
 									: 'hover:scale-110'
 							}`}
-							style={{ backgroundColor: a.scale[5] }}
+							style={{ backgroundColor: a.scale[4] }}
 							title={a.name}
 							aria-label={a.name}
 							aria-checked={name === a.name}
