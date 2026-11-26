@@ -22,7 +22,7 @@ export default function PosterGrid({
 							src={t.posterUrl}
 							alt={mask.title(t.title)}
 							loading="lazy"
-							className="redact-poster aspect-2/3 w-full rounded-lg border border-neutral-200 object-cover transition-opacity group-hover:opacity-85 dark:border-neutral-800"
+							className="redact-poster aspect-2/3 w-full rounded-lg object-cover transition-opacity group-hover:opacity-85"
 						/>
 					) : (
 						<div className="flex aspect-2/3 w-full items-center justify-center rounded-lg border border-neutral-200 bg-neutral-100 text-neutral-300 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-600">

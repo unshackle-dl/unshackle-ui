@@ -6,6 +6,7 @@ export interface Font {
 }
 
 export const SANS_FONTS: Font[] = [
+	{ name: 'Manrope', stack: "'Manrope', ui-sans-serif, system-ui, sans-serif" },
 	{ name: 'DM Sans', stack: "'DM Sans', ui-sans-serif, system-ui, sans-serif" },
 	{ name: 'Inter', stack: "'Inter', ui-sans-serif, system-ui, sans-serif" },
 	{ name: 'IBM Plex Sans', stack: "'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif" }
@@ -17,15 +18,19 @@ export const MONO_FONTS: Font[] = [
 	{ name: 'IBM Plex Mono', stack: "'IBM Plex Mono', ui-monospace, monospace" }
 ];
 
-function initial(key: string, fallback: string): string {
+function initial(key: string, fallback: string, previousDefault: string): string {
 	if (!browser) return fallback;
-	return localStorage.getItem(key) || fallback;
+	const saved = localStorage.getItem(key);
+	return !saved || saved === previousDefault ? fallback : saved;
 }
 
-export const sansFont = writable<string>(initial('unshackle.font.sans', 'DM Sans'), 'DM Sans');
+export const sansFont = writable<string>(
+	initial('unshackle.font.sans', 'Manrope', 'DM Sans'),
+	'Manrope'
+);
 export const monoFont = writable<string>(
-	initial('unshackle.font.mono', 'Geist Mono'),
-	'Geist Mono'
+	initial('unshackle.font.mono', 'JetBrains Mono', 'Geist Mono'),
+	'JetBrains Mono'
 );
 
 if (browser) {

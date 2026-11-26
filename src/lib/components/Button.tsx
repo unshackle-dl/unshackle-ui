@@ -4,11 +4,11 @@ type Variant = 'primary' | 'secondary' | 'danger';
 
 const variants: Record<Variant, string> = {
 	primary:
-		'bg-accent-600 text-white hover:bg-accent-700 focus-visible:ring-accent-500 disabled:bg-accent-600/50',
+		'bg-accent-600 text-white hover:bg-accent-700 focus-visible:ring-accent-500 disabled:bg-accent-600/50 dark:bg-accent-400 dark:text-accent-950 dark:hover:bg-accent-300 dark:disabled:bg-accent-400/50',
 	secondary:
 		'bg-white text-neutral-700 ring-1 ring-neutral-200 hover:bg-neutral-50 focus-visible:ring-accent-500 dark:bg-neutral-800 dark:text-neutral-200 dark:ring-neutral-700 dark:hover:bg-neutral-700/60',
 	danger:
-		'bg-red-100 text-red-700 hover:bg-red-200 focus-visible:ring-red-500 disabled:opacity-50 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25'
+		'bg-red-100 text-red-700 hover:bg-red-200 focus-visible:ring-red-500 disabled:opacity-50 dark:bg-transparent dark:text-neutral-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-300'
 };
 
 /** The button look, for an element that must stay a link (an `<a>` to another site). */
