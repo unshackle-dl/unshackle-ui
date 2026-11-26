@@ -183,6 +183,8 @@ export interface Job {
 	input_prompt?: string | null;
 	// Set while a service waits on an approval elsewhere (pair code, app prompt); needs no answer.
 	notice?: string | null;
+	// Text of a QR code to scan that goes with input_prompt or notice; draw it as a QR code.
+	qr?: string | null;
 	// Present when the list is fetched with full=true (and on /jobs/{id}).
 	parameters?: { wanted?: string[]; [key: string]: unknown };
 	started_time?: string | null;
@@ -239,6 +241,8 @@ export interface RemoteLogin {
 	prompt: string | null;
 	// What the login shows while it waits on the user (a URL and pair code), or null.
 	notice: string | null;
+	// Text of a QR code to scan with the prompt or notice, or null; absent from an older serve.
+	qr?: string | null;
 }
 
 export interface ConfigResponse {

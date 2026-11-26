@@ -10,6 +10,7 @@ import EmptyState from '$lib/components/EmptyState';
 import Icon from '$lib/components/Icon';
 import InputPrompt from '$lib/components/InputPrompt';
 import { Notice } from '$lib/components/JobPromptModal';
+import QrCode from '$lib/components/QrCode';
 import { isActive, isFinished, isQueued, jobView } from '$lib/job';
 import { useMask } from '$lib/stores/incognito';
 
@@ -384,6 +385,8 @@ function Downloads() {
 										{skippedLangs.join(', ')}
 									</p>
 								)}
+
+								{v.active && j.qr && <QrCode text={j.qr} />}
 
 								{v.active && j.notice && (
 									<div

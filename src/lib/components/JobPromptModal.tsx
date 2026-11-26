@@ -8,6 +8,7 @@ import { buttonClass } from './Button';
 import Icon from './Icon';
 import InputPrompt from './InputPrompt';
 import Overlay from './Overlay';
+import QrCode from './QrCode';
 
 // What the popup can show: a question a download job asks (answered here), or a notice a login
 // shows while it waits on the user elsewhere (a URL and pair code), from a download job or from a
@@ -18,13 +19,14 @@ type Ask = {
 	label: string;
 	service?: string;
 	text: string;
+	qr?: string | null;
 	send?: (response: string) => Promise<unknown>; // set for a question, which takes an answer
 };
 
 /** A question that takes an answer, else a notice to act on elsewhere, else nothing. */
 function toAsks(
 	id: string,
-	base: { label: string; service?: string },
+	base: { label: string; service?: string; qr?: string | null },
 	question: { heading: string; text?: string | null; send: Ask['send'] },
 	notice?: string | null
 ): Ask[] {
@@ -99,7 +101,7 @@ export default function JobPromptModal() {
 		...(jobs.data ?? []).flatMap((j) =>
 			toAsks(
 				`j${j.job_id}`,
-				{ label: j.title || j.title_id || j.job_id, service: j.service },
+				{ label: j.title || j.title_id || j.job_id, service: j.service, qr: j.qr },
 				{
 					heading: 'A download needs your input',
 					text: j.input_prompt,
@@ -111,7 +113,7 @@ export default function JobPromptModal() {
 		...(logins.data ?? []).flatMap((l) =>
 			toAsks(
 				`l${l.id}`,
-				{ label: `via ${l.remote}`, service: l.service },
+				{ label: `via ${l.remote}`, service: l.service, qr: l.qr },
 				{
 					heading: 'Sign-in needs your input',
 					text: l.prompt,
@@ -164,6 +166,7 @@ export default function JobPromptModal() {
 					<Icon name="x" size={18} />
 				</button>
 			</div>
+			{ask.qr && <QrCode text={ask.qr} />}
 			{ask.send ? (
 				<InputPrompt prompt={ask.text} busy={busy} onAnswer={answer} />
 			) : (
